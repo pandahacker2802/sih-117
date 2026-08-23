@@ -387,3 +387,197 @@ These will be implemented in subsequent backend layers.
 The next stage is the `config/` layer.
 
 The first task will be establishing the application's database connection and configuration foundation before moving to middleware, validators, services, controllers, and routes.
+
+---
+
+## Configuration & Application Setup
+
+The initial backend configuration and application startup layer has been completed.
+
+### `src/config/db.js`
+
+Responsible for establishing the connection between the backend application and MongoDB.
+
+The database connection is handled separately from the application logic so that database configuration remains centralized and reusable.
+
+The connection uses the `MONGODB_URI` environment variable.
+
+If the database connection fails, the server does not continue running.
+
+---
+
+### `src/app.js`
+
+Responsible for creating and configuring the Express application.
+
+The application currently includes:
+
+- Helmet for basic HTTP security headers
+- CORS configuration
+- JSON request body parsing
+- URL-encoded request body parsing
+- Cookie parsing
+- Basic health-check endpoint
+
+The health-check endpoint is:
+
+`GET /health`
+
+It confirms that the Express application is running correctly.
+
+The Express application is exported from this file rather than starting the server directly.
+
+This separation allows the application configuration and server startup logic to remain independent.
+
+---
+
+### `src/server.js`
+
+Responsible for starting the backend server.
+
+The startup flow is:
+
+`Load Environment Variables → Load Express App → Connect to MongoDB → Start HTTP Server`
+
+The server reads the port from the `PORT` environment variable.
+
+The database connection is established before the HTTP server starts accepting requests.
+
+This prevents the application from starting normally when the required database connection cannot be established.
+
+---
+
+## Environment Variables
+
+The backend currently uses the following environment variables:
+
+- `PORT` — Port on which the Express server runs.
+- `NODE_ENV` — Current application environment.
+- `MONGODB_URI` — MongoDB connection string.
+- `JWT_SECRET` — Secret used for authentication token signing/verification.
+- `JWT_EXPIRES_IN` — Authentication token expiration duration.
+
+The actual `.env` file contains local secrets and must never be committed to the repository.
+
+`.env.example` contains the required variable names without exposing any secrets.
+
+---
+
+## Current Backend Startup Flow
+
+The backend currently follows this structure:
+
+Frontend / Client
+        ↓
+    Express App
+        ↓
+ Middleware & Request Parsing
+        ↓
+     API Routes
+        ↓
+    Controllers
+        ↓
+     Services
+        ↓
+      Models
+        ↓
+     MongoDB
+
+Server startup is handled separately:
+
+`server.js`
+        ↓
+`config/db.js`
+        ↓
+MongoDB Connection
+        ↓
+`app.js`
+        ↓
+Express Server
+
+---
+
+## Current Development Status
+
+### Completed
+
+- Project folder structure
+- Package installation
+- Environment configuration
+- MongoDB connection configuration
+- Express application setup
+- Server startup
+- Health-check endpoint
+- Security middleware setup
+- Request body parsing
+- Cookie parsing
+- Core database models
+- Model relationships and references
+- File classification structure
+- Agent permission structure
+- Data lineage structure
+- Sovereignty metric structure
+
+### Not Implemented Yet
+
+- Authentication
+- Login/logout
+- Password hashing
+- JWT authentication middleware
+- Authorization
+- Role-based access control
+- Project APIs
+- Project member APIs
+- File upload APIs
+- Analysis APIs
+- Report APIs
+- Notification services
+- Audit logging services
+- AI service integration
+- RAG integration
+- Local LLM integration
+- Multimodal AI integration
+- Agent implementation
+- Tool implementation
+- Sandbox execution
+
+---
+
+## Current Backend Architecture
+
+backend/
+├── src/
+│   ├── config/
+│   │   └── db.js
+│   │
+│   ├── controllers/
+│   ├── middleware/
+│   ├── models/
+│   │   ├── User.js
+│   │   ├── Project.js
+│   │   ├── ProjectMember.js
+│   │   ├── File.js
+│   │   ├── Analysis.js
+│   │   ├── AgentRun.js
+│   │   ├── ToolExecution.js
+│   │   ├── Report.js
+│   │   ├── Notification.js
+│   │   ├── AuditLog.js
+│   │   ├── AgentPermission.js
+│   │   ├── DataLineage.js
+│   │   ├── SovereigntyMetric.js
+│   │   └── index.js
+│   │
+│   ├── routes/
+│   ├── services/
+│   ├── utils/
+│   ├── validators/
+│   ├── app.js
+│   └── server.js
+│
+├── uploads/
+├── .env
+├── .env.example
+├── .gitignore
+├── package.json
+└── README.md
