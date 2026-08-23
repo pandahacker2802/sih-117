@@ -10,6 +10,9 @@ const ToolExecution = require("./ToolExecution");
 const Report = require("./Report");
 const Notification = require("./Notification");
 const AuditLog = require("./AuditLog");
+const AgentPermission = require("./AgentPermission");
+const DataLineage = require("./DataLineage");
+const SovereigntyMetric = require("./SovereigntyMetric");
 
 module.exports = {
   User,
@@ -22,4 +25,7 @@ module.exports = {
   Report,
   Notification,
   AuditLog,
+  AgentPermission,
+  DataLineage,
+  SovereigntyMetric,
 };
