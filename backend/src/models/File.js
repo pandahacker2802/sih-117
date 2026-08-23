@@ -10,6 +10,13 @@ const FILE_STATUS = {
   DELETED: "DELETED",
 };
 
+const FILE_CLASSIFICATION = {
+  PUBLIC: "PUBLIC",
+  INTERNAL: "INTERNAL",
+  CONFIDENTIAL: "CONFIDENTIAL",
+  HIGHLY_CONFIDENTIAL: "HIGHLY_CONFIDENTIAL",
+};
+
 const fileSchema = new mongoose.Schema(
   {
     projectId: {
@@ -18,40 +25,54 @@ const fileSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
+
     filename: {
       type: String,
       required: true,
       trim: true,
     },
+
     originalName: {
       type: String,
       required: true,
       trim: true,
     },
+
     mimeType: {
       type: String,
       required: true,
       trim: true,
     },
+
     size: {
       type: Number,
       required: true,
       min: 0,
     },
+
     storageKey: {
       type: String,
       required: true,
       trim: true,
     },
+
     status: {
       type: String,
       enum: Object.values(FILE_STATUS),
       default: FILE_STATUS.UPLOADED,
+      index: true,
+    },
+
+    classification: {
+      type: String,
+      enum: Object.values(FILE_CLASSIFICATION),
+      default: FILE_CLASSIFICATION.INTERNAL,
       index: true,
     },
   },
