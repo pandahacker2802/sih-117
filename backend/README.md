@@ -835,3 +835,308 @@ It will cover validation for:
 - Other API inputs as required
 
 The goal is to reject invalid or unsafe input early and keep controllers focused on application logic.
+---
+
+## Validator Layer
+
+The request validation layer has been implemented using Joi.
+
+The validator layer sits between authentication/authorization middleware and controllers. Its responsibility is to verify that incoming request data has the correct structure, type, format, and allowed values before it reaches application business logic.
+
+Validators do not:
+
+- Access the database
+- Authenticate users
+- Authorize users
+- Perform business logic
+- Hash passwords
+- Generate or verify JWTs
+- Execute AI/RAG operations
+
+The intended request flow is:
+
+`Request → Authentication → Authorization → Validation → Controller → Service → Model/Database`
+
+---
+
+### `src/validators/authValidator.js`
+
+Validates authentication-related request data.
+
+Schemas:
+
+- `loginSchema`
+- `changePasswordSchema`
+- `forgotPasswordSchema`
+- `resetPasswordSchema`
+
+The schemas validate email format, password presence, password confirmation, and reset-token input.
+
+Password hashing and authentication logic are handled outside the validator layer.
+
+The validators also do not check whether an email exists in the database.
+
+---
+
+### `src/validators/userValidator.js`
+
+Validates user creation and update requests.
+
+Schemas:
+
+- `createUserSchema`
+- `updateUserSchema`
+
+Supported global roles:
+
+- `EMPLOYEE`
+- `SUPERVISOR`
+- `ADMIN`
+
+Sensitive/internal fields such as `passwordHash`, `createdBy`, `lastLoginAt`, and timestamps are not accepted from client input.
+
+User existence and authorization checks are handled by the service and middleware layers.
+
+---
+
+### `src/validators/projectValidator.js`
+
+Validates project creation and update requests.
+
+Schemas:
+
+- `createProjectSchema`
+- `updateProjectSchema`
+
+Supported project statuses:
+
+- `ACTIVE`
+- `ARCHIVED`
+
+The validator checks project field structure and allowed values but does not determine whether the authenticated user is allowed to modify the project.
+
+---
+
+### `src/validators/projectMemberValidator.js`
+
+Validates project membership requests.
+
+Schemas:
+
+- `addProjectMemberSchema`
+- `updateProjectMemberSchema`
+
+Supported project-level roles:
+
+- `OWNER`
+- `MEMBER`
+- `REVIEWER`
+
+MongoDB ObjectIds are validated for correct format.
+
+The validator does not check whether the user/project exists or whether duplicate membership already exists. These checks belong to the service layer.
+
+---
+
+### `src/validators/fileValidator.js`
+
+Validates file-related request metadata.
+
+Schema:
+
+- `fileMetadataSchema`
+
+The schema validates:
+
+- Project ID
+- Filename
+- Original filename
+- MIME type
+- File size
+
+The current schema applies a 100 MB request-level size limit.
+
+Actual multipart file processing, MIME detection, malware scanning, and storage operations are handled outside the validator layer.
+
+---
+
+### `src/validators/analysisValidator.js`
+
+Validates analysis creation and retry requests.
+
+Schemas:
+
+- `createAnalysisSchema`
+- `retryAnalysisSchema`
+
+Supported analysis types:
+
+- `DOCUMENT`
+- `IMAGE`
+- `MULTIMODAL`
+- `GENERAL`
+
+Analysis instructions are validated for type and length, while input file references are validated as MongoDB ObjectIds.
+
+The validator does not verify file existence, execute AI/RAG, or create agent runs.
+
+---
+
+### `src/validators/reportValidator.js`
+
+Validates report creation and review requests.
+
+Schemas:
+
+- `createReportSchema`
+- `reviewReportSchema`
+- `reportEntrySchema`
+
+Report findings and recommendations are validated as structured entries.
+
+Review status is restricted to:
+
+- `APPROVED`
+- `REJECTED`
+
+Client requests cannot directly provide internal fields such as:
+
+- `reviewedBy`
+- `reviewedAt`
+- `createdBy`
+- `projectId`
+- `analysisId`
+
+These values are determined by the authenticated backend workflow.
+
+---
+
+### `src/validators/index.js`
+
+Acts as the central export point for all validator schemas.
+
+This allows controllers and routes to import schemas from one location rather than importing each validator file separately.
+
+---
+
+## MongoDB ObjectId Validation
+
+A shared validation approach is used to verify MongoDB ObjectId format without querying the database.
+
+ObjectId validation is currently applied to:
+
+- Project member user IDs
+- File project IDs
+- Analysis input file IDs
+- Analysis retry IDs
+
+This only verifies that the ID has a valid format.
+
+Whether the referenced resource actually exists is determined later by the service layer.
+
+---
+
+## Validation Security Principles
+
+The validator layer does not trust client-supplied values for security-sensitive fields such as:
+
+- User roles
+- `createdBy`
+- `reviewedBy`
+- Project membership
+- Account status
+- Password hashes
+- Audit information
+- Lineage information
+- AI execution state
+
+The separation of responsibilities is:
+
+**Validation:** Is the input structurally valid?
+
+**Authentication:** Who is the user?
+
+**Authorization:** Is the user allowed to perform this action?
+
+**Service:** Is the requested operation valid according to business rules?
+
+---
+
+## Validator Layer Status
+
+### Completed
+
+- Authentication request schemas
+- User request schemas
+- Project request schemas
+- Project membership schemas
+- File metadata validation
+- Analysis request schemas
+- Report request schemas
+- MongoDB ObjectId format validation
+- Enum/value validation
+- Sensitive-field protection
+- Central validator exports
+
+### Remaining
+
+- Reusable `validate(schema)` Express middleware wrapper
+
+The reusable validation middleware will connect Joi schemas to Express request handling and return `400 Bad Request` responses when validation fails.
+
+This will be completed before the service layer is started.
+
+---
+
+## Current Backend Development Status
+
+### Completed
+
+- Project folder structure
+- Package installation
+- Environment configuration
+- MongoDB connection
+- Express application setup
+- Server startup
+- Health-check endpoint
+- Core database models
+- Model relationships and references
+- File classification
+- Agent permission structure
+- Data lineage structure
+- Sovereignty metric structure
+- Authentication middleware
+- Global role-based authorization
+- Project-level authorization
+- Centralized error handler
+- Joi validation schemas
+
+### Not Implemented Yet
+
+- Reusable validation middleware
+- Authentication services
+- User services
+- Project services
+- File services
+- Analysis services
+- Report services
+- Notification services
+- Audit services
+- Controllers
+- Routes
+- AI/RAG integration
+- Local LLM integration
+- Multimodal AI integration
+- Agent implementation
+- Tool implementation
+- Sandbox execution
+
+---
+
+## Next Development Stage
+
+The next stage is to complete the reusable validation middleware and then begin the **service layer**.
+
+The service layer will contain the actual backend business logic and database operations.
+
+Controllers will later remain thin and delegate business operations to services.
