@@ -1583,3 +1583,281 @@ Current status:
 - Routes: **Pending**
 - Integration: **Pending**
 - Testing: **Pending**
+
+---
+
+## Controller Layer
+
+The controller layer has now been implemented.
+
+Controllers act as the HTTP-facing layer between middleware/routes and the service layer.
+
+The controller responsibility is intentionally limited to:
+
+1. Extracting data from the HTTP request
+2. Calling the appropriate service
+3. Returning the HTTP response
+4. Forwarding errors to the centralized error handler
+
+Controllers do NOT contain business logic.
+
+The request flow is:
+
+`Request → Route → Middleware → Validator → Controller → Service → Model → MongoDB`
+
+---
+
+### `src/controllers/authController.js`
+
+Handles authentication-related HTTP operations.
+
+Implemented controllers:
+
+- `login`
+- `changePassword`
+- `forgotPassword`
+- `resetPassword`
+
+Authenticated user identity is taken from `req.user` where required.
+
+The forgot-password endpoint always returns a generic success response regardless of whether the email exists, preventing user enumeration at the HTTP layer.
+
+---
+
+### `src/controllers/userController.js`
+
+Handles user-management HTTP operations.
+
+Implemented controllers:
+
+- `createUser`
+- `getUserById`
+- `getUsers`
+- `updateUser`
+- `activateUser`
+- `deactivateUser`
+
+Query parameters are parsed before being passed to the service layer.
+
+Security-sensitive identity fields are never trusted from client input.
+
+---
+
+### `src/controllers/projectController.js`
+
+Handles project/workspace HTTP operations.
+
+Implemented controllers:
+
+- `createProject`
+- `getProjectById`
+- `getProjects`
+- `updateProject`
+- `archiveProject`
+
+For project creation, `createdBy` is always taken from the authenticated user:
+
+`req.user._id`
+
+It is never taken from client-provided request data.
+
+---
+
+### `src/controllers/projectMemberController.js`
+
+Handles project membership operations.
+
+Implemented controllers:
+
+- `addMember`
+- `getProjectMembers`
+- `updateMemberRole`
+- `removeMember`
+
+Project and user identifiers are taken from validated route parameters/request data.
+
+Authorization remains the responsibility of middleware.
+
+The remove-member operation expects:
+
+`/:projectId/members/:userId`
+
+---
+
+### `src/controllers/fileController.js`
+
+Handles file metadata lifecycle operations.
+
+Implemented controllers:
+
+- `registerFile`
+- `getFileById`
+- `getProjectFiles`
+- `updateFileStatus`
+- `deleteFileMetadata`
+
+The authenticated user's ID is used as `uploadedBy`.
+
+Actual multipart file handling is intentionally not implemented yet.
+
+When Multer is introduced, uploaded file metadata will move from `req.body` to `req.file`. The service/model architecture does not need to change.
+
+---
+
+### `src/controllers/analysisController.js`
+
+Handles analysis/task lifecycle operations.
+
+Implemented controllers:
+
+- `createAnalysis`
+- `getAnalysisById`
+- `getProjectAnalyses`
+- `updateAnalysisStatus`
+- `cancelAnalysis`
+- `retryAnalysis`
+
+Analysis creation uses the authenticated user's identity.
+
+Retry returns `201 Created` because a new analysis record is created.
+
+`updateAnalysisStatus` is intended to be restricted to appropriate internal/system roles through route-level authorization.
+
+No AI, RAG, LLM, or agent execution is performed by the controller.
+
+---
+
+### `src/controllers/reportController.js`
+
+Handles report and human-review operations.
+
+Implemented controllers:
+
+- `createReport`
+- `getReportById`
+- `getProjectReports`
+- `updateReport`
+- `submitForReview`
+- `approveReport`
+- `rejectReport`
+
+Reviewer identity is always taken from:
+
+`req.user._id`
+
+Only the validated review comment is accepted from the request body during approval/rejection.
+
+Report state transitions remain inside `reportService`.
+
+---
+
+### `src/controllers/notificationController.js`
+
+Handles user notification operations.
+
+Implemented controllers:
+
+- `getUserNotifications`
+- `markAsRead`
+- `markAllAsRead`
+- `deleteNotification`
+
+All operations use:
+
+`req.user._id`
+
+The client cannot specify another user's ID for notification operations.
+
+---
+
+### `src/controllers/auditController.js`
+
+Provides read-only access to audit information.
+
+Implemented controllers:
+
+- `getAuditLogs`
+- `getProjectAuditActivity`
+
+There is intentionally no public audit-log creation endpoint.
+
+Audit records are generated internally by backend services and workflows.
+
+---
+
+## Controller Design Principles
+
+Controllers are intentionally thin.
+
+They do NOT:
+
+- Query MongoDB directly
+- Use Mongoose models directly
+- Perform password hashing
+- Compare passwords
+- Generate JWTs
+- Perform Joi validation
+- Perform authorization
+- Implement business rules
+- Execute AI
+- Execute RAG
+- Execute LLMs
+- Perform file storage operations
+
+Instead:
+
+### Middleware
+
+Determines:
+
+- Who the user is
+- Whether authentication is valid
+- Whether the user has permission
+
+### Validator
+
+Determines:
+
+- Whether incoming data has the correct structure
+- Whether required fields exist
+- Whether values have valid types/formats
+- Whether enum values are allowed
+
+### Controller
+
+Determines:
+
+- What HTTP request was received
+- Which service should handle it
+- What HTTP response should be returned
+
+### Service
+
+Determines:
+
+- What the application should actually do
+- What business rules apply
+- What database operations are required
+- What state transitions are allowed
+
+### Model
+
+Determines:
+
+- How data is structured
+- Mongoose-level constraints
+- Database indexes and relationships
+
+---
+
+## Response Format
+
+Controllers use a consistent response envelope.
+
+Successful responses:
+
+```json
+{
+  "success": true,
+  "data": {}
+}
