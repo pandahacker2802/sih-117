@@ -581,3 +581,257 @@ backend/
 ├── .gitignore
 ├── package.json
 └── README.md
+
+---
+
+## Middleware Layer
+
+The middleware layer has now been implemented.
+
+It sits between incoming HTTP requests and the application's controllers/services and is responsible for authentication, authorization, project-level access control, and centralized error handling.
+
+The middleware layer does not contain business logic.
+
+---
+
+### `src/middleware/authMiddleware.js`
+
+Responsible for authenticating users making protected requests.
+
+The middleware:
+
+- Reads the JWT from the Authorization header or token cookie.
+- Verifies the JWT using the configured JWT secret.
+- Retrieves the corresponding user from the database.
+- Verifies that the user exists.
+- Verifies that the user account is active.
+- Excludes the user's password hash from the retrieved user data.
+- Attaches the authenticated user to `req.user`.
+- Rejects invalid or unauthorized requests with `401 Unauthorized`.
+
+The middleware does not handle login or JWT generation. Those responsibilities will be implemented in the authentication service/controller layer.
+
+---
+
+### `src/middleware/roleMiddleware.js`
+
+Responsible for global role-based authorization.
+
+The middleware provides a reusable `requireRole()` function that accepts one or more allowed roles.
+
+Supported global roles:
+
+- `EMPLOYEE`
+- `SUPERVISOR`
+- `ADMIN`
+
+Example usage:
+
+`requireRole("ADMIN")`
+
+or:
+
+`requireRole("ADMIN", "SUPERVISOR")`
+
+The middleware depends on `authenticate` having already populated `req.user`.
+
+If the authenticated user's role is not permitted, the request is rejected with `403 Forbidden`.
+
+---
+
+### `src/middleware/projectAccessMiddleware.js`
+
+Responsible for project-level authorization.
+
+Global user roles and project-level roles are treated separately.
+
+The middleware checks the `ProjectMember` collection to verify that the authenticated user has access to the requested project.
+
+Supported project-level roles:
+
+- `OWNER`
+- `MEMBER`
+- `REVIEWER`
+
+The middleware:
+
+- Reads the project ID from the request.
+- Finds the user's project membership.
+- Rejects users without project access.
+- Optionally checks allowed project-level roles.
+- Attaches the membership record to `req.projectMember`.
+
+This prevents project access logic from being duplicated across controllers.
+
+---
+
+### `src/middleware/errorMiddleware.js`
+
+Provides centralized error handling for the Express application.
+
+The middleware:
+
+- Handles errors using Express error middleware conventions.
+- Converts known errors into appropriate HTTP status codes.
+- Returns a consistent JSON response format.
+- Handles common Mongoose errors.
+- Prevents stack traces and sensitive internal information from being exposed to clients.
+- Logs appropriate error information on the server.
+
+Supported error categories include:
+
+- `400 Bad Request`
+- `401 Unauthorized`
+- `403 Forbidden`
+- `404 Not Found`
+- `409 Conflict`
+- `500 Internal Server Error`
+
+The error handler is intended to be registered after all routes.
+
+---
+
+### `src/middleware/index.js`
+
+Acts as the central export point for the middleware layer.
+
+It exports:
+
+- `authenticate`
+- `requireRole`
+- `requireProjectAccess`
+- `errorHandler`
+
+This allows future routes to import middleware from a single location.
+
+---
+
+## Middleware Request Flow
+
+Protected requests will follow this general flow:
+
+`Request → Authentication → Authorization → Project Access Check → Validation → Controller → Service`
+
+For example:
+
+`Request → authenticate → requireRole → controller`
+
+For project-specific resources:
+
+`Request → authenticate → requireProjectAccess → controller`
+
+Errors are handled centrally by:
+
+`Controller/Service → errorHandler → Response`
+
+---
+
+## Middleware Security Principles
+
+### Authentication
+
+Determines:
+
+**Who is making the request?**
+
+User identity is obtained from the verified JWT and corresponding database record.
+
+---
+
+### Global Authorization
+
+Determines:
+
+**What is this user allowed to do globally?**
+
+This uses the user's global role:
+
+- `EMPLOYEE`
+- `SUPERVISOR`
+- `ADMIN`
+
+---
+
+### Project Authorization
+
+Determines:
+
+**Does this user have access to this specific project?**
+
+This uses the `ProjectMember` relationship rather than relying only on the user's global role.
+
+---
+
+### Secure User Context
+
+The authenticated user attached to `req.user` does not include the stored password hash.
+
+Sensitive authentication information is never exposed unnecessarily to downstream application logic.
+
+---
+
+## Current Backend Development Status
+
+### Completed
+
+- Project folder structure
+- Package installation
+- Environment configuration
+- MongoDB connection
+- Express application setup
+- Server startup
+- Health-check endpoint
+- Core database models
+- Model relationships and references
+- File classification structure
+- Agent permission structure
+- Data lineage structure
+- Sovereignty metric structure
+- Authentication middleware foundation
+- Global role-based authorization
+- Project-level authorization
+- Centralized error handling
+
+### Not Implemented Yet
+
+- Login
+- Logout
+- User creation/activation
+- Password hashing
+- JWT generation
+- Password reset
+- Project APIs
+- Project member APIs
+- File upload APIs
+- Analysis APIs
+- Report APIs
+- Notification services
+- Audit logging services
+- AI service integration
+- RAG integration
+- Local LLM integration
+- Multimodal AI integration
+- Agent implementation
+- Tool implementation
+- Sandbox execution
+
+---
+
+## Next Development Stage
+
+The next stage is the validation layer.
+
+The validation layer will ensure that incoming request data is checked before reaching controllers and services.
+
+It will cover validation for:
+
+- Authentication requests
+- Users
+- Projects
+- Project members
+- Files
+- Analyses
+- Reports
+- Other API inputs as required
+
+The goal is to reject invalid or unsafe input early and keep controllers focused on application logic.
