@@ -1140,3 +1140,446 @@ The next stage is to complete the reusable validation middleware and then begin 
 The service layer will contain the actual backend business logic and database operations.
 
 Controllers will later remain thin and delegate business operations to services.
+
+---
+
+## Service Layer
+
+The service layer has now been implemented.
+
+The service layer sits between controllers and the database and contains the application's business logic and database operations.
+
+Services are intentionally independent of HTTP, Express request/response objects, Joi validation, authentication middleware, and AI execution.
+
+The intended architecture is:
+
+`Request → Route → Middleware → Validator → Controller → Service → Model → Database`
+
+---
+
+### `src/services/authService.js`
+
+Handles authentication business logic.
+
+Implemented operations:
+
+- Login
+- Change password
+- Forgot password
+- Reset password
+
+The login flow:
+
+`Find User → Check Account → Compare Password → Update Last Login → Generate JWT → Return Sanitized User`
+
+Security measures include:
+
+- Password hashes are never returned.
+- Generic authentication errors are used to reduce user enumeration.
+- Passwords are hashed using bcrypt.
+- JWT generation is handled by the service layer.
+- Password reset tokens are stored separately from the User document.
+
+---
+
+### `src/services/userService.js`
+
+Handles user account management.
+
+Implemented operations:
+
+- Create user
+- Get user by ID
+- Get users with filtering and pagination
+- Update user
+- Activate user
+- Deactivate user
+
+The service prevents duplicate employee IDs and email addresses.
+
+Sensitive fields such as `passwordHash` are excluded from user-facing responses.
+
+---
+
+### `src/services/projectService.js`
+
+Handles project/workspace business logic.
+
+Implemented operations:
+
+- Create project
+- Get project by ID
+- Get projects with filtering and pagination
+- Update project
+- Archive project
+
+The creator identity is obtained from trusted backend context rather than client-provided data.
+
+Projects are archived by changing their status rather than physically deleting them.
+
+---
+
+### `src/services/projectMemberService.js`
+
+Handles project membership.
+
+Implemented operations:
+
+- Add member
+- Get project members
+- Update member role
+- Remove member
+
+Supported project roles:
+
+- `OWNER`
+- `MEMBER`
+- `REVIEWER`
+
+The service verifies project/user existence and prevents duplicate memberships.
+
+Authorization remains the responsibility of middleware.
+
+---
+
+### `src/services/fileService.js`
+
+Handles file metadata and lifecycle management.
+
+Implemented operations:
+
+- Register uploaded file metadata
+- Get file metadata
+- Get project files
+- Update file status
+- Soft-delete file metadata
+
+Supported file states:
+
+- `UPLOADED`
+- `PROCESSING`
+- `READY`
+- `FAILED`
+- `DELETED`
+
+Supported classifications:
+
+- `PUBLIC`
+- `INTERNAL`
+- `CONFIDENTIAL`
+- `HIGHLY_CONFIDENTIAL`
+
+The service does not perform multipart parsing, OCR, embeddings, RAG, AI processing, cloud storage, or malware scanning.
+
+Those responsibilities will be handled by their respective layers later.
+
+---
+
+### `src/services/analysisService.js`
+
+Handles the analysis/task lifecycle.
+
+Implemented operations:
+
+- Create analysis
+- Get analysis
+- Get project analyses
+- Update analysis status
+- Cancel analysis
+- Retry analysis
+
+Analysis lifecycle:
+
+`QUEUED → PROCESSING → COMPLETED`
+
+or:
+
+`QUEUED → PROCESSING → FAILED`
+
+Retrying a failed analysis creates a new analysis record while preserving the original history.
+
+The service does not execute AI, RAG, LLMs, or agent orchestration.
+
+---
+
+### `src/services/reportService.js`
+
+Handles report generation records and human approval workflows.
+
+Implemented operations:
+
+- Create report
+- Get report
+- Get project reports
+- Update report
+- Submit for review
+- Approve report
+- Reject report
+
+Report lifecycle:
+
+`DRAFT → PENDING_REVIEW → APPROVED`
+
+or:
+
+`DRAFT → PENDING_REVIEW → REJECTED`
+
+Reviewer information is always taken from trusted backend context.
+
+Clients cannot directly set fields such as `reviewedBy` or `reviewedAt`.
+
+---
+
+### `src/services/notificationService.js`
+
+Handles application-level notification records.
+
+Implemented operations:
+
+- Create notification
+- Get user notifications
+- Mark notification as read
+- Mark all notifications as read
+- Delete notification
+
+Notifications can later be triggered by events such as:
+
+- Analysis completion
+- Report approval
+- Report rejection
+- Project membership changes
+- Account events
+
+External email/notification delivery is not implemented yet.
+
+---
+
+### `src/services/auditService.js`
+
+Handles audit logging.
+
+Implemented operations:
+
+- Create audit log
+- Get audit logs
+- Get project-related audit activity
+
+Audit metadata is sanitized before storage to prevent sensitive information such as passwords, tokens, secrets, and JWT secrets from being persisted.
+
+Audit records are intended to be created by trusted backend workflows rather than directly from client input.
+
+---
+
+## Password Reset Token Model
+
+A dedicated:
+
+`src/models/PasswordResetToken.js`
+
+model was introduced instead of adding reset-token fields to the User model.
+
+The model stores:
+
+- `userId`
+- `hashedToken`
+- `expiresAt`
+- `used`
+- timestamps
+
+The raw reset token is never stored in the database.
+
+The reset token is hashed before persistence and checked against the stored hash during password reset.
+
+### Automatic Token Cleanup
+
+The `expiresAt` field uses a MongoDB TTL index.
+
+Expired password-reset token documents are therefore automatically removed by MongoDB.
+
+The TTL mechanism is used for storage cleanup only.
+
+The authentication service still verifies token validity and expiration before allowing a password reset.
+
+---
+
+## Service Layer Architecture
+
+The service layer follows a strict separation of responsibilities:
+
+### Middleware
+
+Handles:
+
+- Authentication
+- Authorization
+- Project access
+
+### Validators
+
+Handle:
+
+- Request structure
+- Input types
+- Required fields
+- Allowed values
+- Input format
+
+### Controllers
+
+Will handle:
+
+- HTTP request extraction
+- Calling services
+- HTTP responses
+
+### Services
+
+Handle:
+
+- Business logic
+- Database operations
+- Application workflows
+- State transitions
+
+### Models
+
+Handle:
+
+- Database document structure
+- Mongoose-level validation
+- Database relationships
+
+---
+
+## AI Boundary
+
+The service layer intentionally does NOT implement:
+
+- RAG
+- Local LLM execution
+- Multimodal inference
+- OCR
+- Embeddings
+- Vector databases
+- Agent orchestration
+- Model routing
+- Model registry
+- AI tools
+- Sandbox execution
+- AI Trust Firewall
+- Agent Permission Passport
+- Sovereignty score calculation
+- Data lineage generation
+
+These will be integrated later through dedicated AI/security service boundaries.
+
+The current backend services provide the application-level foundation required for those integrations.
+
+---
+
+## Service Layer Security Principles
+
+The following principles are enforced across the service layer:
+
+- No `req` or `res` objects inside services.
+- No HTTP status codes inside services.
+- No duplicate Joi validation.
+- No duplicate authorization logic.
+- No password hashes in user-facing responses.
+- Client input is not trusted for internal ownership fields.
+- Sensitive audit metadata is sanitized.
+- Password reset tokens are stored as hashes.
+- Expired password-reset records are automatically cleaned through TTL.
+- Business rules are kept separate from request handling.
+
+---
+
+## Current Backend Development Status
+
+### Completed
+
+- Project folder structure
+- Package installation
+- Environment configuration
+- MongoDB connection
+- Express application setup
+- Server startup
+- Health-check endpoint
+- Core database models
+- Model relationships and references
+- File classification
+- Agent permission structure
+- Data lineage structure
+- Sovereignty metric structure
+- Authentication middleware
+- Global role-based authorization
+- Project-level authorization
+- Centralized error handling
+- Joi validation schemas
+- Reusable validation middleware
+- Authentication services
+- User services
+- Project/workspace services
+- Project membership services
+- File metadata services
+- Analysis lifecycle services
+- Report and approval services
+- Notification services
+- Audit services
+- Password reset token model
+- Password reset token hashing
+- Password reset token expiry
+- MongoDB TTL cleanup for expired reset tokens
+- Central service exports
+
+### Not Implemented Yet
+
+- Controllers
+- Routes
+- Route registration in `app.js`
+- Actual multipart upload handling
+- Physical file storage integration
+- Email delivery
+- AI service integration
+- RAG integration
+- Local LLM integration
+- Multimodal AI integration
+- Agent orchestration
+- Tool execution
+- Sandbox execution
+- AI security enforcement
+- Integration testing
+- End-to-end testing
+
+---
+
+## Next Development Stage
+
+The next stage is the **Controller Layer**.
+
+Controllers will connect incoming HTTP requests to the service layer.
+
+The intended flow will become:
+
+`Route → Middleware → Validator → Controller → Service → Model`
+
+Controllers will remain thin and will not contain business logic.
+
+---
+
+## Current Architecture Progress
+
+`Models → Config → App/Server → Middleware → Validators → Services → Controllers → Routes → Integration → Testing`
+
+Current status:
+
+- Models: **Complete**
+- Config: **Complete**
+- App/Server: **Complete**
+- Middleware: **Complete**
+- Validators: **Complete**
+- Services: **Complete**
+- Controllers: **Next**
+- Routes: **Pending**
+- Integration: **Pending**
+- Testing: **Pending**
