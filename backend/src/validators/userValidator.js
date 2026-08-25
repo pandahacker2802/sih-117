@@ -17,7 +17,6 @@ const updateUserSchema = Joi.object({
   email: Joi.string().email({ tlds: { allow: false } }).lowercase().trim(),
   department: Joi.string().trim().allow(null, ""),
   role: Joi.string().valid(...ALLOWED_ROLES),
-  isActive: Joi.boolean(),
 }).min(1);
 
 module.exports = {

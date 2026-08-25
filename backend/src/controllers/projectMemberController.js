@@ -28,12 +28,12 @@ const getProjectMembers = async (req, res, next) => {
 
 const updateMemberRole = async (req, res, next) => {
   try {
-    const { userId, role } = req.body;
+    const { role } = req.body;
     const member = await projectMemberService.updateMemberRole({
       projectId: req.params.projectId,
-      userId,
+      userId: req.params.userId,
       role,
-    });
+    }, req.user._id);
 
     return res.status(200).json({ success: true, data: member });
   } catch (error) {
@@ -46,7 +46,7 @@ const removeMember = async (req, res, next) => {
     await projectMemberService.removeMember({
       projectId: req.params.projectId,
       userId: req.params.userId,
-    });
+    }, req.user._id);
 
     return res.status(200).json({ success: true, data: null });
   } catch (error) {

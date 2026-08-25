@@ -2,6 +2,7 @@
 
 const bcrypt = require("bcryptjs");
 const { User } = require("../models");
+const auditService = require("./auditService");
 
 const BCRYPT_ROUNDS = 12;
 const ALLOWED_UPDATE_FIELDS = ["name", "email", "department", "role"];
@@ -39,6 +40,14 @@ const createUser = async ({ employeeId, name, email, department, role }, created
     isFirstLogin: true,
     createdBy: createdById || null,
   });
+
+  auditService.createAuditLog({
+    userId: createdById,
+    action: "USER_CREATED",
+    resourceType: "User",
+    resourceId: user._id,
+    metadata: { employeeId, role },
+  }).catch(console.error);
 
   return sanitizeUser(user);
 };
@@ -80,7 +89,7 @@ const getUsers = async (filters = {}, options = {}) => {
   return { users, total, page, limit };
 };
 
-const updateUser = async (userId, updates) => {
+const updateUser = async (userId, updates, actorId) => {
   const sanitized = {};
 
   for (const field of ALLOWED_UPDATE_FIELDS) {
@@ -113,10 +122,20 @@ const updateUser = async (userId, updates) => {
     throw new Error("User not found");
   }
 
+  const action = sanitized.role ? "ROLE_CHANGED" : "USER_UPDATED";
+
+  auditService.createAuditLog({
+    userId: actorId,
+    action,
+    resourceType: "User",
+    resourceId: userId,
+    metadata: sanitized.role ? { newRole: sanitized.role } : { updatedFields: Object.keys(sanitized) },
+  }).catch(console.error);
+
   return user;
 };
 
-const activateUser = async (userId) => {
+const activateUser = async (userId, actorId) => {
   const user = await User.findByIdAndUpdate(
     userId,
     { $set: { isActive: true } },
@@ -127,10 +146,18 @@ const activateUser = async (userId) => {
     throw new Error("User not found");
   }
 
+  auditService.createAuditLog({
+    userId: actorId,
+    action: "USER_UPDATED",
+    resourceType: "User",
+    resourceId: userId,
+    metadata: { isActive: true },
+  }).catch(console.error);
+
   return user;
 };
 
-const deactivateUser = async (userId) => {
+const deactivateUser = async (userId, actorId) => {
   const user = await User.findByIdAndUpdate(
     userId,
     { $set: { isActive: false } },
@@ -140,6 +167,14 @@ const deactivateUser = async (userId) => {
   if (!user) {
     throw new Error("User not found");
   }
+
+  auditService.createAuditLog({
+    userId: actorId,
+    action: "USER_DISABLED",
+    resourceType: "User",
+    resourceId: userId,
+    metadata: { isActive: false },
+  }).catch(console.error);
 
   return user;
 };

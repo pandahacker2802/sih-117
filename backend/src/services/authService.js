@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const { User, PasswordResetToken } = require("../models");
+const auditService = require("./auditService");
 
 const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -26,26 +27,31 @@ const generateToken = (user) => {
   );
 };
 
-const login = async ({ email, password }) => {
+const login = async ({ email, password }, ipAddress) => {
   const user = await User.findOne({ email });
 
   if (!user) {
+    auditService.createAuditLog({ action: "LOGIN_FAILED", metadata: { email }, ipAddress, status: "FAILED" }).catch(console.error);
     throw new Error("Invalid credentials");
   }
 
   if (!user.isActive) {
+    auditService.createAuditLog({ userId: user._id, action: "LOGIN_FAILED", metadata: { reason: "account_inactive" }, ipAddress, status: "FAILED" }).catch(console.error);
     throw new Error("Account is inactive");
   }
 
   const isMatch = await bcrypt.compare(password, user.passwordHash);
 
   if (!isMatch) {
+    auditService.createAuditLog({ userId: user._id, action: "LOGIN_FAILED", metadata: { reason: "invalid_password" }, ipAddress, status: "FAILED" }).catch(console.error);
     throw new Error("Invalid credentials");
   }
 
   await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
 
   const token = generateToken(user);
+
+  auditService.createAuditLog({ userId: user._id, action: "LOGIN_SUCCESS", ipAddress }).catch(console.error);
 
   return { user: sanitizeUser(user), token };
 };
@@ -66,6 +72,8 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
   const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
   await User.findByIdAndUpdate(userId, { passwordHash, isFirstLogin: false });
+
+  auditService.createAuditLog({ userId, action: "USER_UPDATED", metadata: { field: "password" } }).catch(console.error);
 };
 
 const forgotPassword = async ({ email }) => {

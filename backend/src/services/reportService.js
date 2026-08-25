@@ -1,6 +1,7 @@
 "use strict";
 
 const { Report, Project, Analysis } = require("../models");
+const auditService = require("./auditService");
 
 const ALLOWED_UPDATE_FIELDS = ["title", "summary", "findings", "recommendations"];
 
@@ -20,6 +21,10 @@ const createReport = async (
     throw new Error("Analysis not found");
   }
 
+  if (analysis.projectId.toString() !== projectId.toString()) {
+    throw new Error("Analysis does not belong to this project");
+  }
+
   const report = await Report.create({
     projectId,
     analysisId,
@@ -30,6 +35,15 @@ const createReport = async (
     recommendations: recommendations || [],
     status: "DRAFT",
   });
+
+  auditService.createAuditLog({
+    userId: createdById,
+    action: "REPORT_CREATED",
+    resourceType: "Report",
+    resourceId: report._id,
+    projectId,
+    metadata: { title, analysisId: analysisId.toString() },
+  }).catch(console.error);
 
   return report;
 };
@@ -110,7 +124,7 @@ const updateReport = async (reportId, updates) => {
   return updated;
 };
 
-const submitForReview = async (reportId) => {
+const submitForReview = async (reportId, actorId) => {
   const report = await Report.findById(reportId);
 
   if (!report) {
@@ -126,6 +140,14 @@ const submitForReview = async (reportId) => {
     { $set: { status: "PENDING_REVIEW" } },
     { new: true }
   );
+
+  auditService.createAuditLog({
+    userId: actorId,
+    action: "REPORT_SUBMITTED",
+    resourceType: "Report",
+    resourceId: reportId,
+    projectId: report.projectId,
+  }).catch(console.error);
 
   return updated;
 };
@@ -156,6 +178,15 @@ const approveReport = async (reportId, reviewerId, reviewComment) => {
     .populate("createdBy", "-passwordHash")
     .populate("reviewedBy", "-passwordHash");
 
+  auditService.createAuditLog({
+    userId: reviewerId,
+    action: "REPORT_APPROVED",
+    resourceType: "Report",
+    resourceId: reportId,
+    projectId: report.projectId,
+    metadata: reviewComment ? { reviewComment } : undefined,
+  }).catch(console.error);
+
   return updated;
 };
 
@@ -184,6 +215,15 @@ const rejectReport = async (reportId, reviewerId, reviewComment) => {
   )
     .populate("createdBy", "-passwordHash")
     .populate("reviewedBy", "-passwordHash");
+
+  auditService.createAuditLog({
+    userId: reviewerId,
+    action: "REPORT_REJECTED",
+    resourceType: "Report",
+    resourceId: reportId,
+    projectId: report.projectId,
+    metadata: reviewComment ? { reviewComment } : undefined,
+  }).catch(console.error);
 
   return updated;
 };

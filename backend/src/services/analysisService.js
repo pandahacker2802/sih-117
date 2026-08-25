@@ -1,6 +1,7 @@
 "use strict";
 
 const { Analysis, Project, File } = require("../models");
+const auditService = require("./auditService");
 
 const RETRYABLE_STATUSES = ["FAILED"];
 
@@ -34,6 +35,15 @@ const createAnalysis = async (
     inputFiles: inputFiles || [],
     status: "QUEUED",
   });
+
+  auditService.createAuditLog({
+    userId: createdById,
+    action: "ANALYSIS_CREATED",
+    resourceType: "Analysis",
+    resourceId: analysis._id,
+    projectId,
+    metadata: { type },
+  }).catch(console.error);
 
   return analysis;
 };
@@ -126,7 +136,7 @@ const updateAnalysisStatus = async (analysisId, status, extras = {}) => {
   return analysis;
 };
 
-const cancelAnalysis = async (analysisId) => {
+const cancelAnalysis = async (analysisId, actorId) => {
   const analysis = await Analysis.findById(analysisId);
 
   if (!analysis) {
@@ -142,6 +152,14 @@ const cancelAnalysis = async (analysisId) => {
     { $set: { status: "FAILED", completedAt: new Date() } },
     { new: true }
   );
+
+  auditService.createAuditLog({
+    userId: actorId,
+    action: "ANALYSIS_CANCELLED",
+    resourceType: "Analysis",
+    resourceId: analysisId,
+    projectId: analysis.projectId,
+  }).catch(console.error);
 
   return updated;
 };
@@ -165,6 +183,15 @@ const retryAnalysis = async (analysisId, createdById) => {
     inputFiles: original.inputFiles,
     status: "QUEUED",
   });
+
+  auditService.createAuditLog({
+    userId: createdById,
+    action: "ANALYSIS_RETRIED",
+    resourceType: "Analysis",
+    resourceId: retry._id,
+    projectId: original.projectId,
+    metadata: { originalAnalysisId: analysisId.toString() },
+  }).catch(console.error);
 
   return retry;
 };

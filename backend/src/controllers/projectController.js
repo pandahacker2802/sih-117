@@ -51,7 +51,7 @@ const updateProject = async (req, res, next) => {
       name,
       description,
       department,
-    });
+    }, req.user._id);
 
     return res.status(200).json({ success: true, data: project });
   } catch (error) {
@@ -61,7 +61,7 @@ const updateProject = async (req, res, next) => {
 
 const archiveProject = async (req, res, next) => {
   try {
-    const project = await projectService.archiveProject(req.params.projectId);
+    const project = await projectService.archiveProject(req.params.projectId, req.user._id);
 
     return res.status(200).json({ success: true, data: project });
   } catch (error) {

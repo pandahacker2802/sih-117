@@ -8,7 +8,7 @@ const ALLOWED_ANALYSIS_TYPES = ["DOCUMENT", "IMAGE", "MULTIMODAL", "GENERAL"];
 
 const createAnalysisSchema = Joi.object({
   type: Joi.string().valid(...ALLOWED_ANALYSIS_TYPES).required(),
-  instruction: Joi.string().trim().max(5000).required(),
+  instruction: Joi.string().trim().max(5000).optional().allow(null, ""),
   inputFiles: Joi.array()
     .items(
       Joi.string().pattern(OBJECT_ID_PATTERN).messages({
@@ -20,11 +20,7 @@ const createAnalysisSchema = Joi.object({
     .required(),
 });
 
-const retryAnalysisSchema = Joi.object({
-  analysisId: Joi.string().pattern(OBJECT_ID_PATTERN).required().messages({
-    "string.pattern.base": "analysisId must be a valid MongoDB ObjectId",
-  }),
-});
+const retryAnalysisSchema = Joi.object({});
 
 module.exports = {
   createAnalysisSchema,

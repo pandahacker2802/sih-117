@@ -9,13 +9,22 @@ const AUDIT_ACTIONS = {
   USER_UPDATED: "USER_UPDATED",
   USER_DISABLED: "USER_DISABLED",
   ROLE_CHANGED: "ROLE_CHANGED",
+  PROJECT_CREATED: "PROJECT_CREATED",
+  PROJECT_UPDATED: "PROJECT_UPDATED",
+  PROJECT_ARCHIVED: "PROJECT_ARCHIVED",
+  MEMBER_ADDED: "MEMBER_ADDED",
+  MEMBER_ROLE_CHANGED: "MEMBER_ROLE_CHANGED",
+  MEMBER_REMOVED: "MEMBER_REMOVED",
   FILE_UPLOADED: "FILE_UPLOADED",
   FILE_DELETED: "FILE_DELETED",
   ANALYSIS_CREATED: "ANALYSIS_CREATED",
+  ANALYSIS_CANCELLED: "ANALYSIS_CANCELLED",
+  ANALYSIS_RETRIED: "ANALYSIS_RETRIED",
   AI_EXECUTION_STARTED: "AI_EXECUTION_STARTED",
   AI_EXECUTION_COMPLETED: "AI_EXECUTION_COMPLETED",
   AI_EXECUTION_FAILED: "AI_EXECUTION_FAILED",
   REPORT_CREATED: "REPORT_CREATED",
+  REPORT_SUBMITTED: "REPORT_SUBMITTED",
   REPORT_APPROVED: "REPORT_APPROVED",
   REPORT_REJECTED: "REPORT_REJECTED",
 };
@@ -48,6 +57,12 @@ const auditLogSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      default: null,
+      index: true,
+    },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: null,
@@ -71,6 +86,7 @@ const auditLogSchema = new mongoose.Schema(
 
 auditLogSchema.index({ action: 1, createdAt: -1 });
 auditLogSchema.index({ userId: 1, createdAt: -1 });
+auditLogSchema.index({ projectId: 1, createdAt: -1 });
 
 const AuditLog = mongoose.model("AuditLog", auditLogSchema);
 

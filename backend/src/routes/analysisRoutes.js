@@ -37,15 +37,16 @@ router.patch(
 );
 
 router.post(
-  "/analyses/:analysisId/cancel",
+  "/projects/:projectId/analyses/:analysisId/cancel",
   authenticate,
+  requireProjectAccess(),
   analysisController.cancelAnalysis
 );
 
 router.post(
-  "/analyses/:analysisId/retry",
+  "/projects/:projectId/analyses/:analysisId/retry",
   authenticate,
-  validate(retryAnalysisSchema),
+  requireProjectAccess(),
   analysisController.retryAnalysis
 );
 

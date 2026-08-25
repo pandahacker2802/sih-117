@@ -2,7 +2,7 @@
 
 const { Router } = require("express");
 const { authenticate, requireProjectAccess, validate } = require("../middleware");
-const { createReportSchema, reviewReportSchema, reportEntrySchema } = require("../validators");
+const { createReportSchema, updateReportSchema, reviewReportSchema } = require("../validators");
 const reportController = require("../controllers/reportController");
 
 const router = Router();
@@ -30,22 +30,22 @@ router.get(
 );
 
 router.patch(
-  "/reports/:reportId",
+  "/projects/:projectId/reports/:reportId",
   authenticate,
   requireProjectAccess("OWNER"),
-  validate(reportEntrySchema),
+  validate(updateReportSchema),
   reportController.updateReport
 );
 
 router.post(
-  "/reports/:reportId/submit",
+  "/projects/:projectId/reports/:reportId/submit",
   authenticate,
   requireProjectAccess("OWNER", "MEMBER"),
   reportController.submitForReview
 );
 
 router.post(
-  "/reports/:reportId/approve",
+  "/projects/:projectId/reports/:reportId/approve",
   authenticate,
   requireProjectAccess("REVIEWER", "OWNER"),
   validate(reviewReportSchema),
@@ -53,7 +53,7 @@ router.post(
 );
 
 router.post(
-  "/reports/:reportId/reject",
+  "/projects/:projectId/reports/:reportId/reject",
   authenticate,
   requireProjectAccess("REVIEWER", "OWNER"),
   validate(reviewReportSchema),

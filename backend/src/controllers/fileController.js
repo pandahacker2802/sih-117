@@ -4,10 +4,17 @@ const { fileService } = require("../services");
 
 const registerFile = async (req, res, next) => {
   try {
-    const { projectId, filename, originalName, mimeType, size, storageKey, classification } =
-      req.body;
+    const { filename, originalName, mimeType, size, storageKey, classification } = req.body;
     const file = await fileService.registerFile(
-      { projectId, filename, originalName, mimeType, size, storageKey, classification },
+      {
+        projectId: req.params.projectId,
+        filename,
+        originalName,
+        mimeType,
+        size,
+        storageKey,
+        classification,
+      },
       req.user._id
     );
 
@@ -20,6 +27,12 @@ const registerFile = async (req, res, next) => {
 const getFileById = async (req, res, next) => {
   try {
     const file = await fileService.getFileById(req.params.fileId);
+
+    if (file.projectId._id
+      ? file.projectId._id.toString() !== req.params.projectId
+      : file.projectId.toString() !== req.params.projectId) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
 
     return res.status(200).json({ success: true, data: file });
   } catch (error) {
@@ -58,7 +71,7 @@ const updateFileStatus = async (req, res, next) => {
 
 const deleteFileMetadata = async (req, res, next) => {
   try {
-    const file = await fileService.deleteFileMetadata(req.params.fileId);
+    const file = await fileService.deleteFileMetadata(req.params.fileId, req.user._id);
 
     return res.status(200).json({ success: true, data: file });
   } catch (error) {

@@ -48,7 +48,7 @@ const getUsers = async (req, res, next) => {
 const updateUser = async (req, res, next) => {
   try {
     const { name, email, department, role } = req.body;
-    const user = await userService.updateUser(req.params.id, { name, email, department, role });
+    const user = await userService.updateUser(req.params.id, { name, email, department, role }, req.user._id);
 
     return res.status(200).json({ success: true, data: user });
   } catch (error) {
@@ -58,7 +58,7 @@ const updateUser = async (req, res, next) => {
 
 const activateUser = async (req, res, next) => {
   try {
-    const user = await userService.activateUser(req.params.id);
+    const user = await userService.activateUser(req.params.id, req.user._id);
 
     return res.status(200).json({ success: true, data: user });
   } catch (error) {
@@ -68,7 +68,7 @@ const activateUser = async (req, res, next) => {
 
 const deactivateUser = async (req, res, next) => {
   try {
-    const user = await userService.deactivateUser(req.params.id);
+    const user = await userService.deactivateUser(req.params.id, req.user._id);
 
     return res.status(200).json({ success: true, data: user });
   } catch (error) {

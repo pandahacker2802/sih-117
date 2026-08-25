@@ -19,6 +19,7 @@ const createAuditLog = async ({
     action,
     resourceType: resourceType || null,
     resourceId: resourceId || null,
+    projectId: projectId || null,
     metadata: safeMetadata,
     ipAddress: ipAddress || null,
     status: status || "SUCCESS",
@@ -90,10 +91,7 @@ const getAuditLogs = async (filters = {}, options = {}) => {
 };
 
 const getProjectAuditActivity = async (projectId, options = {}) => {
-  const query = {
-    resourceType: { $in: ["Project", "Analysis", "Report", "File", "ProjectMember"] },
-    resourceId: projectId,
-  };
+  const query = { projectId };
 
   const page = Math.max(1, options.page || 1);
   const limit = Math.min(200, Math.max(1, options.limit || 50));

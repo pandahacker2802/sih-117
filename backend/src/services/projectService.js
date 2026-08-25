@@ -1,6 +1,7 @@
 "use strict";
 
 const { Project } = require("../models");
+const auditService = require("./auditService");
 
 const ALLOWED_UPDATE_FIELDS = ["name", "description", "department"];
 
@@ -12,6 +13,15 @@ const createProject = async ({ name, description, department }, createdById) => 
     createdBy: createdById,
     status: "ACTIVE",
   });
+
+  auditService.createAuditLog({
+    userId: createdById,
+    action: "PROJECT_CREATED",
+    resourceType: "Project",
+    resourceId: project._id,
+    projectId: project._id,
+    metadata: { name },
+  }).catch(console.error);
 
   return project;
 };
@@ -57,7 +67,7 @@ const getProjects = async (filters = {}, options = {}) => {
   return { projects, total, page, limit };
 };
 
-const updateProject = async (projectId, updates) => {
+const updateProject = async (projectId, updates, actorId) => {
   const sanitized = {};
 
   for (const field of ALLOWED_UPDATE_FIELDS) {
@@ -80,10 +90,19 @@ const updateProject = async (projectId, updates) => {
     throw new Error("Project not found");
   }
 
+  auditService.createAuditLog({
+    userId: actorId,
+    action: "PROJECT_UPDATED",
+    resourceType: "Project",
+    resourceId: projectId,
+    projectId,
+    metadata: { updatedFields: Object.keys(sanitized) },
+  }).catch(console.error);
+
   return project;
 };
 
-const archiveProject = async (projectId) => {
+const archiveProject = async (projectId, actorId) => {
   const project = await Project.findByIdAndUpdate(
     projectId,
     { $set: { status: "ARCHIVED" } },
@@ -93,6 +112,14 @@ const archiveProject = async (projectId) => {
   if (!project) {
     throw new Error("Project not found");
   }
+
+  auditService.createAuditLog({
+    userId: actorId,
+    action: "PROJECT_ARCHIVED",
+    resourceType: "Project",
+    resourceId: projectId,
+    projectId,
+  }).catch(console.error);
 
   return project;
 };

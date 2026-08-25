@@ -1,6 +1,7 @@
 "use strict";
 
 const { Project, User, ProjectMember } = require("../models");
+const auditService = require("./auditService");
 
 const VALID_ROLES = ["OWNER", "MEMBER", "REVIEWER"];
 
@@ -34,6 +35,15 @@ const addMember = async ({ projectId, userId, role }, addedById) => {
     addedBy: addedById,
   });
 
+  auditService.createAuditLog({
+    userId: addedById,
+    action: "MEMBER_ADDED",
+    resourceType: "ProjectMember",
+    resourceId: member._id,
+    projectId,
+    metadata: { targetUserId: userId.toString(), role },
+  }).catch(console.error);
+
   return member.populate(["userId", "addedBy"]);
 };
 
@@ -52,7 +62,7 @@ const getProjectMembers = async (projectId) => {
   return members;
 };
 
-const updateMemberRole = async ({ projectId, userId, role }) => {
+const updateMemberRole = async ({ projectId, userId, role }, actorId) => {
   if (!VALID_ROLES.includes(role)) {
     throw new Error("Invalid project role");
   }
@@ -69,15 +79,33 @@ const updateMemberRole = async ({ projectId, userId, role }) => {
     throw new Error("Project member not found");
   }
 
+  auditService.createAuditLog({
+    userId: actorId,
+    action: "MEMBER_ROLE_CHANGED",
+    resourceType: "ProjectMember",
+    resourceId: member._id,
+    projectId,
+    metadata: { targetUserId: userId.toString(), newRole: role },
+  }).catch(console.error);
+
   return member;
 };
 
-const removeMember = async ({ projectId, userId }) => {
+const removeMember = async ({ projectId, userId }, actorId) => {
   const member = await ProjectMember.findOneAndDelete({ projectId, userId });
 
   if (!member) {
     throw new Error("Project member not found");
   }
+
+  auditService.createAuditLog({
+    userId: actorId,
+    action: "MEMBER_REMOVED",
+    resourceType: "ProjectMember",
+    resourceId: member._id,
+    projectId,
+    metadata: { targetUserId: userId.toString() },
+  }).catch(console.error);
 
   return member;
 };

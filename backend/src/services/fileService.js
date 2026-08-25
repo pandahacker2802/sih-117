@@ -1,6 +1,7 @@
 "use strict";
 
 const { File, Project } = require("../models");
+const auditService = require("./auditService");
 
 const ALLOWED_STATUSES = ["UPLOADED", "PROCESSING", "READY", "FAILED", "DELETED"];
 
@@ -25,6 +26,15 @@ const registerFile = async (
     classification: classification || "INTERNAL",
     status: "UPLOADED",
   });
+
+  auditService.createAuditLog({
+    userId: uploadedById,
+    action: "FILE_UPLOADED",
+    resourceType: "File",
+    resourceId: file._id,
+    projectId,
+    metadata: { originalName, mimeType, size },
+  }).catch(console.error);
 
   return file;
 };
@@ -92,7 +102,7 @@ const updateFileStatus = async (fileId, status) => {
   return file;
 };
 
-const deleteFileMetadata = async (fileId) => {
+const deleteFileMetadata = async (fileId, actorId) => {
   const file = await File.findByIdAndUpdate(
     fileId,
     { $set: { status: "DELETED" } },
@@ -102,6 +112,15 @@ const deleteFileMetadata = async (fileId) => {
   if (!file) {
     throw new Error("File not found");
   }
+
+  auditService.createAuditLog({
+    userId: actorId,
+    action: "FILE_DELETED",
+    resourceType: "File",
+    resourceId: file._id,
+    projectId: file.projectId,
+    metadata: { originalName: file.originalName },
+  }).catch(console.error);
 
   return file;
 };

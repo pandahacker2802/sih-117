@@ -22,6 +22,7 @@ const { createAnalysisSchema, retryAnalysisSchema } = require("./analysisValidat
 
 const {
   createReportSchema,
+  updateReportSchema,
   reviewReportSchema,
   reportEntrySchema,
 } = require("./reportValidator");
@@ -47,6 +48,7 @@ module.exports = {
   retryAnalysisSchema,
 
   createReportSchema,
+  updateReportSchema,
   reviewReportSchema,
   reportEntrySchema,
 };

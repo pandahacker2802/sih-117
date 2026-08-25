@@ -4,9 +4,16 @@ const { reportService } = require("../services");
 
 const createReport = async (req, res, next) => {
   try {
-    const { projectId, analysisId, title, summary, findings, recommendations } = req.body;
+    const { analysisId, title, summary, findings, recommendations } = req.body;
     const report = await reportService.createReport(
-      { projectId, analysisId, title, summary, findings, recommendations },
+      {
+        projectId: req.params.projectId,
+        analysisId,
+        title,
+        summary,
+        findings,
+        recommendations,
+      },
       req.user._id
     );
 
@@ -19,6 +26,12 @@ const createReport = async (req, res, next) => {
 const getReportById = async (req, res, next) => {
   try {
     const report = await reportService.getReportById(req.params.reportId);
+
+    if (report.projectId._id
+      ? report.projectId._id.toString() !== req.params.projectId
+      : report.projectId.toString() !== req.params.projectId) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
 
     return res.status(200).json({ success: true, data: report });
   } catch (error) {
@@ -61,7 +74,7 @@ const updateReport = async (req, res, next) => {
 
 const submitForReview = async (req, res, next) => {
   try {
-    const report = await reportService.submitForReview(req.params.reportId);
+    const report = await reportService.submitForReview(req.params.reportId, req.user._id);
 
     return res.status(200).json({ success: true, data: report });
   } catch (error) {

@@ -4,9 +4,9 @@ const { analysisService } = require("../services");
 
 const createAnalysis = async (req, res, next) => {
   try {
-    const { projectId, type, instruction, inputFiles } = req.body;
+    const { type, instruction, inputFiles } = req.body;
     const analysis = await analysisService.createAnalysis(
-      { projectId, type, instruction, inputFiles },
+      { projectId: req.params.projectId, type, instruction, inputFiles },
       req.user._id
     );
 
@@ -19,6 +19,12 @@ const createAnalysis = async (req, res, next) => {
 const getAnalysisById = async (req, res, next) => {
   try {
     const analysis = await analysisService.getAnalysisById(req.params.analysisId);
+
+    if (analysis.projectId._id
+      ? analysis.projectId._id.toString() !== req.params.projectId
+      : analysis.projectId.toString() !== req.params.projectId) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
 
     return res.status(200).json({ success: true, data: analysis });
   } catch (error) {
@@ -65,7 +71,7 @@ const updateAnalysisStatus = async (req, res, next) => {
 
 const cancelAnalysis = async (req, res, next) => {
   try {
-    const analysis = await analysisService.cancelAnalysis(req.params.analysisId);
+    const analysis = await analysisService.cancelAnalysis(req.params.analysisId, req.user._id);
 
     return res.status(200).json({ success: true, data: analysis });
   } catch (error) {
