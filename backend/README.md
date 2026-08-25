@@ -1861,3 +1861,525 @@ Successful responses:
   "success": true,
   "data": {}
 }
+---
+
+## Route Layer
+
+The route layer is now implemented.
+
+Routes act as the HTTP entry point of the backend and connect incoming requests to the appropriate middleware and controllers.
+
+Routes contain **wiring only**. Business logic, database operations, authentication logic, and AI processing are handled by their respective layers.
+
+### Request Flow
+
+HTTP Request
+→ Route
+→ Authentication Middleware
+→ Authorization Middleware
+→ Validation Middleware
+→ Controller
+→ Service
+→ Model
+→ MongoDB
+
+---
+
+## Route Structure
+
+### `src/routes/authRoutes.js`
+
+Handles authentication endpoints.
+
+Implemented:
+
+- `POST /api/auth/login`
+- `POST /api/auth/change-password`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+
+Authentication rules:
+
+- Login is public.
+- Forgot password is public.
+- Reset password is public.
+- Change password requires authentication.
+- There is no public signup endpoint.
+
+---
+
+### `src/routes/userRoutes.js`
+
+Handles user management.
+
+Implemented:
+
+- `POST /api/users`
+- `GET /api/users`
+- `GET /api/users/:id`
+- `PATCH /api/users/:id`
+- `PATCH /api/users/:id/activate`
+- `PATCH /api/users/:id/deactivate`
+
+All user-management routes require authentication and `ADMIN` authorization.
+
+Users cannot self-register or self-assign privileged roles.
+
+---
+
+### `src/routes/projectRoutes.js`
+
+Handles project/workspace operations.
+
+Implemented:
+
+- `POST /api/projects`
+- `GET /api/projects`
+- `GET /api/projects/:projectId`
+- `PATCH /api/projects/:projectId`
+- `PATCH /api/projects/:projectId/archive`
+
+Rules:
+
+- Any authenticated user can create a project.
+- Viewing a specific project requires project membership.
+- Updating a project requires the `OWNER` project role.
+- Archiving a project requires the `OWNER` project role.
+
+---
+
+### `src/routes/projectMemberRoutes.js`
+
+Project-member routes are nested under projects.
+
+Implemented:
+
+- `POST /api/projects/:projectId/members`
+- `GET /api/projects/:projectId/members`
+- `PATCH /api/projects/:projectId/members/:userId`
+- `DELETE /api/projects/:projectId/members/:userId`
+
+Project membership routes use `mergeParams: true` so that `projectId` remains available to the nested router and project-access middleware.
+
+Rules:
+
+- Adding members requires `OWNER`.
+- Updating member roles requires `OWNER`.
+- Removing members requires `OWNER`.
+- Viewing members requires project membership.
+
+---
+
+### `src/routes/fileRoutes.js`
+
+Handles file metadata operations.
+
+Implemented:
+
+- `POST /api/projects/:projectId/files`
+- `GET /api/projects/:projectId/files`
+- `GET /api/projects/:projectId/files/:fileId`
+- `PATCH /api/files/:fileId/status`
+- `DELETE /api/files/:fileId`
+
+Project-scoped file operations use:
+
+`authenticate → requireProjectAccess() → controller`
+
+The file-detail endpoint is intentionally project-scoped:
+
+`GET /api/projects/:projectId/files/:fileId`
+
+This prevents an authenticated user from accessing a file belonging to a project they are not a member of.
+
+Current implementation handles file metadata only.
+
+Multipart upload, Multer, physical storage, OCR, embeddings, RAG, and AI processing are not implemented yet.
+
+---
+
+### `src/routes/analysisRoutes.js`
+
+Handles analysis/task lifecycle endpoints.
+
+Implemented:
+
+- `POST /api/projects/:projectId/analyses`
+- `GET /api/projects/:projectId/analyses`
+- `GET /api/projects/:projectId/analyses/:analysisId`
+- `PATCH /api/analyses/:analysisId/status`
+- `POST /api/analyses/:analysisId/cancel`
+- `POST /api/analyses/:analysisId/retry`
+
+The analysis-detail endpoint is intentionally project-scoped:
+
+`GET /api/projects/:projectId/analyses/:analysisId`
+
+Project-scoped analysis operations require project membership.
+
+Analysis status updates are restricted to `ADMIN`.
+
+No AI, RAG, LLM, multimodal inference, or agent execution occurs inside routes.
+
+---
+
+### `src/routes/reportRoutes.js`
+
+Handles reports and human approval workflows.
+
+Implemented:
+
+- `POST /api/projects/:projectId/reports`
+- `GET /api/projects/:projectId/reports`
+- `GET /api/projects/:projectId/reports/:reportId`
+- `PATCH /api/reports/:reportId`
+- `POST /api/reports/:reportId/submit`
+- `POST /api/reports/:reportId/approve`
+- `POST /api/reports/:reportId/reject`
+
+The report-detail endpoint is intentionally project-scoped:
+
+`GET /api/projects/:projectId/reports/:reportId`
+
+Report viewing requires project membership.
+
+Approval/rejection requires an appropriate project role such as `REVIEWER` or `OWNER`.
+
+Reviewer identity is taken from the authenticated user rather than client input.
+
+---
+
+### `src/routes/notificationRoutes.js`
+
+Handles per-user notifications.
+
+Implemented:
+
+- `GET /api/notifications`
+- `PATCH /api/notifications/read-all`
+- `PATCH /api/notifications/:notificationId/read`
+- `DELETE /api/notifications/:notificationId`
+
+All notification routes require authentication.
+
+Notification operations are scoped using the authenticated user's identity.
+
+The client cannot provide another user's ID to access their notifications.
+
+The `/read-all` route is declared before the dynamic `/:notificationId/read` route to avoid route matching conflicts.
+
+---
+
+### `src/routes/auditRoutes.js`
+
+Provides read-only audit access.
+
+Implemented:
+
+- `GET /api/audit`
+- `GET /api/audit/projects/:projectId`
+
+Audit routes require:
+
+- Authentication
+- `ADMIN` authorization
+
+There are intentionally no public audit creation, update, or deletion endpoints.
+
+Audit entries are created internally by backend services and workflows.
+
+---
+
+## Middleware Order
+
+For protected routes, middleware follows this order:
+
+`authenticate → authorization → validate → controller`
+
+### Authentication
+
+Determines:
+
+> Who is this user?
+
+### Authorization
+
+Determines:
+
+> Is this user allowed to perform this operation?
+
+Authorization can be:
+
+- Global role-based authorization
+- Project-level membership authorization
+
+### Validation
+
+Determines:
+
+> Is the incoming input structurally valid?
+
+### Controller
+
+Determines:
+
+> Which service should handle this HTTP request and what response should be returned?
+
+---
+
+## Project-Level Resource Protection
+
+Project-scoped resources use the project ID in the URL so that project-level authorization can happen before the controller.
+
+For example:
+
+`GET /api/projects/:projectId/files/:fileId`
+
+Flow:
+
+`Request → authenticate → requireProjectAccess → controller → fileService`
+
+This prevents an authenticated user who belongs to Project A from directly accessing a resource belonging to Project B.
+
+The same protection is applied to:
+
+- Files
+- Analyses
+- Reports
+
+Resource-detail routes are therefore project-scoped instead of using globally accessible flat IDs.
+
+---
+
+## Central Route Index
+
+`src/routes/index.js` acts as the single entry point for application routes.
+
+It mounts:
+
+- `authRoutes`
+- `userRoutes`
+- `projectRoutes`
+- `notificationRoutes`
+- `auditRoutes`
+- File routes
+- Analysis routes
+- Report routes
+
+The central router is mounted in `app.js` under:
+
+`/api`
+
+This keeps route registration centralized and prevents individual route modules from being directly mounted throughout the application.
+
+---
+
+## Security Boundaries
+
+The route layer enforces the following boundaries:
+
+| Concern | Enforcement |
+|---|---|
+| No public signup | No signup route exists |
+| User management | ADMIN authorization |
+| Project access | `requireProjectAccess()` |
+| Project ownership | `requireProjectAccess("OWNER")` |
+| Reviewer actions | Appropriate project roles |
+| File access | Project-scoped routes |
+| Analysis access | Project-scoped routes |
+| Report access | Project-scoped routes |
+| Analysis status updates | ADMIN authorization |
+| File status changes | ADMIN authorization |
+| Audit access | ADMIN authorization |
+| Audit creation | Internal service operation |
+| Reviewer identity | `req.user` |
+| Notification ownership | `req.user._id` |
+
+---
+
+## AI Boundary
+
+The route layer intentionally does NOT implement:
+
+- RAG
+- Local LLM execution
+- Multimodal AI
+- OCR
+- Embeddings
+- Vector databases
+- Agent orchestration
+- Model routing
+- AI tools
+- Sandbox execution
+- AI Trust Firewall
+- Agent Permission Passport
+- Sovereignty calculations
+- Data lineage generation
+
+These will be integrated later through dedicated backend service boundaries.
+
+---
+
+## Current Backend Development Status
+
+### Completed
+
+- Project folder structure
+- Package installation
+- Environment configuration
+- MongoDB connection
+- Express application setup
+- Server startup
+- Health-check endpoint
+- Core database models
+- Model relationships and references
+- File classification
+- Agent permission structure
+- Data lineage structure
+- Sovereignty metric structure
+- Authentication middleware
+- Global role-based authorization
+- Project-level authorization
+- Centralized error handling
+- Joi validation schemas
+- Reusable validation middleware
+- Authentication services
+- User services
+- Project/workspace services
+- Project membership services
+- File metadata services
+- Analysis lifecycle services
+- Report and approval services
+- Notification services
+- Audit services
+- Password reset token model
+- Password reset token hashing
+- Password reset token expiry
+- Password reset TTL cleanup
+- Central service exports
+- Authentication controllers
+- User controllers
+- Project controllers
+- Project membership controllers
+- File controllers
+- Analysis controllers
+- Report controllers
+- Notification controllers
+- Audit controllers
+- Central controller exports
+- Authentication routes
+- User routes
+- Project routes
+- Project membership routes
+- File routes
+- Analysis routes
+- Report routes
+- Notification routes
+- Audit routes
+- Central route index
+- Route registration in `app.js`
+- Project-scoped resource-detail access protection
+
+### Not Implemented Yet
+
+- Multipart file upload
+- Multer integration
+- Physical file storage
+- Email delivery
+- AI service integration
+- RAG integration
+- Local LLM integration
+- Multimodal AI integration
+- Agent orchestration
+- Tool execution
+- Sandbox execution
+- AI security enforcement
+- Integration testing
+- End-to-end testing
+
+---
+
+## Current Architecture Progress
+
+`Models → Config → App/Server → Middleware → Validators → Services → Controllers → Routes → Integration → Testing`
+
+Current status:
+
+- Models: **Complete**
+- Config: **Complete**
+- App/Server: **Complete**
+- Middleware: **Complete**
+- Validators: **Complete**
+- Services: **Complete**
+- Controllers: **Complete**
+- Routes: **Complete**
+- Integration: **Next**
+- Testing: **Pending**
+
+---
+
+## Next Development Stage
+
+The next stage is **Backend Integration**.
+
+The main focus will be connecting the completed layers and verifying complete request flows.
+
+The integration stage will cover:
+
+- Route-to-controller wiring
+- Controller-to-service wiring
+- Authentication flow
+- Authorization flow
+- Validation flow
+- Database operations
+- File lifecycle
+- Project membership
+- Analysis lifecycle
+- Report approval workflow
+- Notifications
+- Audit logging
+- Error handling
+
+AI/RAG integration will remain separate from the core backend integration and will be connected later through defined service boundaries.
+
+---
+
+## Final Request Flow
+
+For a typical protected project resource:
+
+`HTTP Request`
+
+↓
+
+`Route`
+
+↓
+
+`authenticate`
+
+↓
+
+`requireProjectAccess()`
+
+↓
+
+`validate()`
+
+↓
+
+`Controller`
+
+↓
+
+`Service`
+
+↓
+
+`Mongoose Model`
+
+↓
+
+`MongoDB`
+
+This separation keeps authentication, authorization, validation, HTTP handling, business logic, and persistence independently maintainable.
