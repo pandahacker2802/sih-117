@@ -11,6 +11,10 @@ const startServer = async () => {
   try {
     await connectDB();
 
+    // Start background Analysis worker
+    const analysisWorker = require("./services/ai/analysisWorker");
+    analysisWorker.start();
+
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });

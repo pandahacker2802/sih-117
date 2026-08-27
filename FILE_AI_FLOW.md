@@ -121,11 +121,10 @@ File ID (_id) ──> MongoDB File Document ──> storageKey ──> Physical 
 
 ## 6. Backend → RAG / AI
 
-* **Current Status:** AI/RAG integration is not yet implemented.
-* **Communication:** The backend does not send any files, paths, or identifiers to an active AI engine.
-* **Analysis Job Creation:** Initiating an analysis (`POST /api/projects/:projectId/analyses`) creates an `Analysis` document with status `"QUEUED"` referencing the `inputFiles` (an array of `File` `_id`s). There is currently no active queue worker or webhook integration triggering downstream AI execution.
-* **Status Updates:** An administrative interface or external service with `ADMIN` privilege can update the analysis status and write results/errors using:
-  `PATCH /api/analyses/:analysisId/status`
+* **Current Status:** The database-polling `AnalysisWorker` and `AIAgentAdapter` bridge interface are fully implemented and running.
+* **Communication:** The `AnalysisWorker` fetches `QUEUED` analyses from MongoDB, validates all target files, checks physical file availability at the path resolved from the `storageKey`, prepares a clean payload containing the files' metadata and paths, and invokes `AIAgentAdapter.processAnalysis(payload)`.
+* **Analysis Job Creation:** Creating an analysis via `POST /api/projects/:projectId/analyses` sets the status to `"QUEUED"`. The worker automatically picks it up within 5 seconds.
+* **Status Updates:** The worker uses the existing status-update services to transition the analysis status to `"COMPLETED"` (on success) or `"FAILED"` (on error, storing a descriptive error string).
 
 ---
 
@@ -189,9 +188,9 @@ Frontend ──> JWT Authentication (Bearer/Cookie) ──> Project Membership C
 * Metadata registration, listing, and single-file retrieval endpoints.
 * File status (`PATCH`) and metadata deletion (`DELETE`) endpoints (Admin only).
 * Analysis job metadata registration (`Analysis.js`), which accepts and validates project-specific input file IDs.
+* Background database-polling analysis worker (`AnalysisWorker`) and AI adapter bridge (`AIAgentAdapter`).
 
 ### Pending
 * Physical file upload handling (no local uploads handler or direct cloud storage pipeline exists).
 * File serving endpoint (retrieving the actual file content/stream).
-* Event-driven hooks or message queue triggers connecting new `"QUEUED"` analyses to an AI processing service.
 * RAG processing logic, embeddings generation, vector storage, and inference pipelines.
