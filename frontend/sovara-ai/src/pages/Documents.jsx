@@ -62,6 +62,41 @@ function Documents() {
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [documentAction, setDocumentAction] = useState("");
 
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+
+  async function handleFileChange(event) {
+    const file = event.target.files?.[0];
+    if (!file || !activeProject) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      await filesAPI.upload(activeProject._id, file, "INTERNAL");
+      setUploaded(true);
+      // Refresh the file list
+      const res = await filesAPI.list(activeProject._id);
+      const files = res.data?.files || res.data || [];
+      const rows = files.map((f) => [
+        f.originalName || f.filename,
+        mimeToType(f.mimeType),
+        formatSize(f.size),
+        mapProcessing(f.status),
+        f.status === "READY" ? "INDEXED" : f.status,
+        f.uploadedBy?.name || "System",
+        mimeToIcon(f.mimeType),
+        mapStatus(f.status),
+      ]);
+      setDocuments(rows);
+      if (rows.length > 0) setSelected(rows[0]);
+    } catch (err) {
+      setUploadError(err.message);
+    } finally {
+      setUploading(false);
+      // Reset input so same file can be re-uploaded if needed
+      event.target.value = "";
+    }
+  }
+
   useEffect(() => {
     async function fetchFiles() {
       if (!activeProject) { setLoading(false); return; }
@@ -105,10 +140,16 @@ function Documents() {
       <section className="document-registry">
         <header className="registry-header"><div><p className="workspace-label">Knowledge / Registry</p><h1>Document Registry</h1><p>Manage and index sovereign files for AI processing.</p></div><label className="select-control"><Filter size={16} /><span className="sr-only">Filter documents by status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="complete">Complete</option><option value="processing">Processing</option><option value="error">Failed</option></select></label></header>
         <div className="document-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search documents, metadata, or content hash..." /></div>
-        {/* Backend connection: files are metadata-only registration — no binary upload supported yet */}
-        <label className={`upload-zone${uploaded ? " uploaded" : ""}`}><input type="file" hidden onChange={(event) => setUploaded(Boolean(event.target.files?.[0]))} /><span><CloudUpload size={25} /></span><strong>{uploaded ? "Document queued for indexing" : "Drag and drop files here"}</strong><em>{uploaded ? "Local processing has started" : "or click to browse from your computer"}</em><small>Supported formats: PDF, DOCX, CSV, TXT (Max 500MB)</small></label>
+        {/* Real multipart/form-data upload — field name: "file" */}
+        <label className={`upload-zone${uploaded ? " uploaded" : ""}${uploading ? " uploading" : ""}`}>
+          <input type="file" hidden disabled={uploading} onChange={handleFileChange} />
+          <span><CloudUpload size={25} /></span>
+          <strong>{uploading ? "Uploading…" : uploaded ? "Document uploaded successfully" : "Drag and drop files here"}</strong>
+          <em>{uploading ? "Saving file to server…" : uploaded ? "File is queued for AI indexing" : "or click to browse from your computer"}</em>
+          <small>Supported formats: PDF, DOCX, CSV, TXT (Max 100MB)</small>
+        </label>
         {documentAction && <div className="export-feedback" role="status">{documentAction}</div>}
-        {error && <div className="export-feedback" role="alert" style={{ color: "#ef8e84" }}>Error: {error}</div>}
+        {(error || uploadError) && <div className="export-feedback" role="alert" style={{ color: "#ef8e84" }}>Error: {uploadError || error}</div>}
 
         {loading ? (
           <p style={{ color: "#8f7768", padding: "24px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: "11px" }}>Loading documents…</p>

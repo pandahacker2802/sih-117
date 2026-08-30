@@ -5,6 +5,7 @@ const { requireRole } = require("./roleMiddleware");
 const { requireProjectAccess } = require("./projectAccessMiddleware");
 const { errorHandler } = require("./errorMiddleware");
 const validate = require("./validateMiddleware");
+const upload = require("./uploadMiddleware");
 
 module.exports = {
   authenticate,
@@ -12,4 +13,5 @@ module.exports = {
   requireProjectAccess,
   errorHandler,
   validate,
+  upload,
 };

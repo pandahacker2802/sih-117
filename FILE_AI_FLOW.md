@@ -1,196 +1,243 @@
 # File Flow & AI/RAG Integration Architecture
 
-This document outlines the technical design, endpoints, and flow for files and AI/RAG services based on the current implementation of the backend.
+This document reflects the **current, verified implementation** of the file upload and AI/RAG analysis pipeline.
 
 ---
 
 ## 1. Complete File Flow
 
-The current backend implementation manages file metadata only. The actual upload of physical files to a storage provider is not implemented in the backend code and must be handled externally or client-side. 
+```
+Frontend
+  → multipart/form-data (field: "file")
+  → POST /api/projects/:projectId/files
+  → authenticate middleware (JWT)
+  → requireProjectAccess() middleware
+  → upload.single("file") (multer, disk storage)
+  → body-mapping middleware (sets originalName, mimeType, size, filename, storageKey)
+  → validate(fileMetadataSchema) (Joi)
+  → fileController.registerFile
+  → fileService.registerFile
+  → MongoDB: File document created (storageKey stored, NO file bytes)
+  → Physical file saved at: uploads/<projectId>/<uniqueFilename>
+  → Response: { success: true, data: { _id, storageKey, ... } }
 
-Below is the diagram of the actual flow supported by the codebase:
+Frontend
+  → POST /api/projects/:projectId/analyses  { inputFiles: [fileId] }
+  → MongoDB: Analysis document (status: QUEUED)
 
-```mermaid
-flowchart TD
-    subgraph Frontend
-        FE[Client App]
-    end
-
-    subgraph File_Storage [File Storage]
-        FS[(Physical Storage / S3 / External)]
-    end
-
-    subgraph Backend_API [Backend API]
-        R_File[POST /api/projects/:projectId/files]
-        R_Anal[POST /api/projects/:projectId/analyses]
-    end
-
-    subgraph Database [Database - MongoDB]
-        M_File[(File Collection - Metadata)]
-        M_Anal[(Analysis Collection - Metadata)]
-    end
-
-    subgraph AI_RAG [RAG / AI Service]
-        AIS[AI Engine / RAG Pipeline - Pending]
-    end
-
-    %% Flow Steps
-    FE -- "1. Uploads physical bytes (External to backend)" --> FS
-    FS -- "2. Returns storage identifier (storageKey)" --> FE
-    FE -- "3. Registers metadata with storageKey" --> R_File
-    R_File -- "4. Validates project membership" --> R_File
-    R_File -- "5. Saves metadata document" --> M_File
-    R_File -- "6. Returns file JSON (with _id)" --> FE
-    
-    FE -- "7. Requests analysis (with inputFiles: [fileId])" --> R_Anal
-    R_Anal -- "8. Confirms files belong to project" --> R_Anal
-    R_Anal -- "9. Saves analysis document (status: QUEUED)" --> M_Anal
-    
-    M_Anal -. "10. Polls/Consumes QUEUED analyses (Pending)" .-> AIS
-    M_File -. "11. Resolves fileId to get storageKey (Pending)" .-> AIS
-    FS -. "12. Fetches physical bytes using storageKey (Pending)" .-> AIS
+AnalysisWorker (polls every 5s)
+  → Finds QUEUED analysis
+  → Sets status: PROCESSING
+  → For each fileId in inputFiles:
+      File.findById(fileId) → storageKey
+      physicalPath = path.resolve(process.cwd(), storageKey)
+      fs.existsSync(physicalPath) → true/false
+  → If file missing → FAILED ("physical file unavailable")
+  → If file exists → AIAgentAdapter.processAnalysis(payload)
+  → COMPLETED with result, or FAILED with error
 ```
 
 ---
 
-## 2. File Upload
+## 2. File Upload Endpoint
 
-The backend does not accept raw multipart/form-data or binary files. Instead, it exposes a metadata registration endpoint.
+| Property        | Value                                              |
+| :-------------- | :------------------------------------------------- |
+| **Endpoint**    | `POST /api/projects/:projectId/files`              |
+| **Method**      | `POST`                                             |
+| **Content-Type**| `multipart/form-data`                              |
+| **Field name**  | `file` (the binary file field sent by FormData)    |
+| **Auth**        | `Authorization: Bearer <JWT>`                      |
 
-* **Endpoint:** `POST /api/projects/:projectId/files`
-* **HTTP Method:** `POST`
-* **Content-Type:** `application/json`
-* **Request Body Payload (JSON):**
-  ```json
-  {
-    "filename": "string (required, max 500 chars)",
-    "originalName": "string (required, max 500 chars)",
-    "mimeType": "string (required, e.g., 'application/pdf')",
-    "size": "number (required, integer, min 0, max 100MB)",
-    "storageKey": "string (required, max 1000 chars, e.g., 'uploads/project_alpha/doc.pdf')",
-    "classification": "string (optional, PUBLIC | INTERNAL | CONFIDENTIAL | HIGHLY_CONFIDENTIAL, defaults to 'INTERNAL')"
-  }
-  ```
-* **Middleware Stack:**
-  1. `authenticate`: Verifies the user's JWT token (extracted from the `Authorization: Bearer <token>` header or `token` cookie) and populates `req.user`.
-  2. `requireProjectAccess()`: Enforces that the authenticated user is a member of the project defined by `:projectId` in the route.
-  3. `validate(fileMetadataSchema)`: Joi middleware validating the structure of the JSON payload.
+### Optional form field
+| Field            | Type   | Description                                                           |
+| :--------------- | :----- | :-------------------------------------------------------------------- |
+| `classification` | string | `PUBLIC` \| `INTERNAL` \| `CONFIDENTIAL` \| `HIGHLY_CONFIDENTIAL` (default: `INTERNAL`) |
+
+> All other metadata (`originalName`, `mimeType`, `size`, `filename`, `storageKey`) is derived **automatically** from the uploaded file — the client must NOT send them manually.
+
+### Middleware Stack
+1. `authenticate` — Verifies JWT, populates `req.user`
+2. `requireProjectAccess()` — Confirms user is a project member
+3. `upload.single("file")` — Multer parses the multipart request, saves file to disk
+4. Body-mapping middleware — Maps `req.file` → `req.body` fields
+5. `validate(fileMetadataSchema)` — Joi validates the mapped body
+6. `fileController.registerFile` — Creates MongoDB document
 
 ---
 
-## 3. Where the File is Saved
+## 3. Physical File Storage
 
-* **Physical File Storage:** Physical file storage is not currently implemented. The backend does not store files locally (the `backend/uploads/` directory exists but remains empty and is not referenced in upload routes) nor does it write files directly to cloud storage.
-* **Storage Path/Logic:** The physical file's location is represented solely by the `storageKey` string provided by the client when registering the file. The backend saves this string exactly as-is into MongoDB without path validation or generation.
+- **Base directory:** `<backend_root>/uploads/`
+- **Per-file path:** `uploads/<projectId>/<sanitizedBaseName>-<timestamp>-<random>.<ext>`
+- **Example:** `uploads/6a93e6a88ccc40981059a0c8/report-1788077946034-iu84jo.pdf`
+- **storageKey format:** `uploads/<projectId>/<uniqueFilename>` (relative to `process.cwd()`)
+
+**Physical path resolution (used by worker):**
+```js
+const physicalPath = path.resolve(process.cwd(), file.storageKey);
+// → C:\...\backend\uploads\<projectId>\<uniqueFilename>
+```
+
+**Path-traversal protection:**
+- Filenames are sanitized: only `[a-zA-Z0-9.\-_]` are kept; all other characters become `_`
+- `path.basename()` strips any directory components
+- Unique timestamp+random suffix prevents collisions and accidental overwrites
+
+**File size limit:** 100 MB (matching the Joi validator `MAX_FILE_SIZE_BYTES`)
 
 ---
 
 ## 4. What is Stored in MongoDB
 
-MongoDB stores only the **FILE RECORD/METADATA**, not the actual file bytes.
+MongoDB stores only **FILE METADATA** — no file bytes.
 
 ### File Schema (`src/models/File.js`)
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `_id` | `ObjectId` | Auto-generated unique file record identifier. |
-| `projectId` | `ObjectId` | Reference to the `Project` model (indexed). |
-| `uploadedBy` | `ObjectId` | Reference to the `User` model (indexed). |
-| `filename` | `String` | System-assigned filename string. |
-| `originalName` | `String` | Original name of the uploaded file. |
-| `mimeType` | `String` | MIME type (e.g. `application/pdf`). |
-| `size` | `Number` | File size in bytes. |
-| `storageKey` | `String` | External/physical storage identifier/path. |
-| `status` | `String` | Status enum: `UPLOADED`, `PROCESSING`, `READY`, `FAILED`, `DELETED` (default: `UPLOADED`, indexed). |
-| `classification` | `String` | Security classification enum: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `HIGHLY_CONFIDENTIAL` (default: `INTERNAL`, indexed). |
-| `createdAt` | `Date` | Autogenerated upload timestamp. |
-| `updatedAt` | `Date` | Autogenerated last modified timestamp. |
+| Field            | Type       | Description                                                                              |
+| :--------------- | :--------- | :--------------------------------------------------------------------------------------- |
+| `_id`            | `ObjectId` | Auto-generated unique file record identifier                                             |
+| `projectId`      | `ObjectId` | Reference to `Project` (indexed)                                                         |
+| `uploadedBy`     | `ObjectId` | Reference to `User` (indexed)                                                            |
+| `filename`       | `String`   | Server-generated unique filename on disk                                                 |
+| `originalName`   | `String`   | Original filename from the client                                                        |
+| `mimeType`       | `String`   | MIME type detected from the upload (e.g. `application/pdf`)                              |
+| `size`           | `Number`   | File size in bytes (from `req.file.size`)                                                |
+| `storageKey`     | `String`   | **Relative path from `process.cwd()`** — `uploads/<projectId>/<filename>`               |
+| `status`         | `String`   | `UPLOADED` → `PROCESSING` → `READY` / `FAILED` / `DELETED` (default: `UPLOADED`)        |
+| `classification` | `String`   | `PUBLIC` / `INTERNAL` / `CONFIDENTIAL` / `HIGHLY_CONFIDENTIAL` (default: `INTERNAL`)    |
+| `createdAt`      | `Date`     | Auto-generated                                                                           |
+| `updatedAt`      | `Date`     | Auto-generated                                                                           |
 
 ---
 
-## 5. File ID and Path
+## 5. File ID → storageKey → Physical Path (Contract)
 
 ```
-File ID (_id) ──> MongoDB File Document ──> storageKey ──> Physical Storage
+MongoDB File._id
+  ↓  (File.findById)
+MongoDB File.storageKey   e.g. "uploads/6a93.../report-172....pdf"
+  ↓  (path.resolve(process.cwd(), storageKey))
+Absolute physical path    e.g. "C:\...\backend\uploads\6a93...\report-172....pdf"
+  ↓  (fs.existsSync / fs.readFileSync)
+Actual file bytes
 ```
 
-* **Frontend:** Receives the fully created metadata document (including the auto-generated `_id` and the `storageKey`). When launching operations like AI analysis, the frontend references files using their MongoDB `_id` (File ID).
-* **RAG / AI Service:** Needs the `storageKey` to locate and retrieve the file from physical storage, as well as metadata such as `mimeType` and `classification` for correct processing and security filtering.
+This contract is implemented in `src/services/ai/analysisWorker.js` and must not be changed without updating both the upload middleware and the worker.
 
 ---
 
 ## 6. Backend → RAG / AI
 
-* **Current Status:** The database-polling `AnalysisWorker` and `AIAgentAdapter` bridge interface are fully implemented and running.
-* **Communication:** The `AnalysisWorker` fetches `QUEUED` analyses from MongoDB, validates all target files, checks physical file availability at the path resolved from the `storageKey`, prepares a clean payload containing the files' metadata and paths, and invokes `AIAgentAdapter.processAnalysis(payload)`.
-* **Analysis Job Creation:** Creating an analysis via `POST /api/projects/:projectId/analyses` sets the status to `"QUEUED"`. The worker automatically picks it up within 5 seconds.
-* **Status Updates:** The worker uses the existing status-update services to transition the analysis status to `"COMPLETED"` (on success) or `"FAILED"` (on error, storing a descriptive error string).
-
----
-
-## 7. Authorization
-
-File and resource access are strictly authorized in the backend layer:
-
-```
-Frontend ──> JWT Authentication (Bearer/Cookie) ──> Project Membership Check ──> File Ownership Check
-```
-
-1. **Authentication:** All requests must include a valid JWT token.
-2. **Project Membership Check (`requireProjectAccess`):** Routes under `/api/projects/:projectId` verify that the authenticated user's ID matches an active `ProjectMember` record linked to that `projectId`.
-3. **File Ownership Check:** In `fileController.getFileById`, the backend double-checks that the target file's `projectId` matches the `:projectId` parameter provided in the request before returning any metadata.
-4. **AI Interface Security:** The RAG/AI service must verify permissions through backend-authenticated contexts instead of trusting client-supplied file IDs or paths.
-
----
-
-## 8. RAG Developer Handoff
-
-### Information RAG Developer Needs
-
-* **File Query Endpoints:**
-  * `GET /api/projects/:projectId/files` - List metadata for project files.
-  * `GET /api/projects/:projectId/files/:fileId` - Retrieve details of a single file.
-* **File ID:** Represented by the `_id` field in MongoDB.
-* **Storage Location:** External to the backend. Physical files must be retrieved using the `storageKey`.
-* **Path/URL Field:** `storageKey` contains the target file's path/key in the physical storage system.
-* **MIME Type:** Read the `mimeType` field to handle file parsing (e.g. PDF, text, images).
-* **Authentication Requirement:** Backend endpoints require a valid JWT passed in the `Authorization` header as `Bearer <token>`.
-* **Project Authorization Requirement:** Access is restricted to users listed as members of the specific project.
-* **Current AI Integration Status:** **AI/RAG integration is not yet implemented.** A job worker or consumer needs to be built to poll or receive `"QUEUED"` analyses, resolve their `inputFiles` to retrieve their physical files via `storageKey`, and update results using `PATCH /api/analyses/:analysisId/status`.
-
----
-
-## 9. Frontend Handoff
-
-### Information Frontend Developer Needs
-
-* **Registration Endpoint:** `POST /api/projects/:projectId/files`
-* **Request Format:** JSON (Content-Type: `application/json`) containing:
-  `filename`, `originalName`, `mimeType`, `size`, `storageKey`, and `classification`.
-* **Response Details:** Returns `{ success: true, data: FileObject }` where `FileObject` contains the generated database ID `_id`.
-* **File ID:** Track `data._id` for all downstream operations.
-* **File Reference in Analysis:** When launching an analysis request via `POST /api/projects/:projectId/analyses`, provide the file IDs in the `inputFiles` array:
+- **Worker:** `src/services/ai/analysisWorker.js` — polls every 5 seconds for `QUEUED` analyses
+- **Adapter:** `src/services/ai/aiAdapter.js` — integration boundary (stub → replace with real Ollama/RAG calls)
+- **Worker picks up** `QUEUED` → sets `PROCESSING` → resolves files → calls `AIAgentAdapter.processAnalysis(payload)`
+- **On success:** sets `COMPLETED` with `result` and `agentPlan`
+- **On failure:** sets `FAILED` with `error.message` (e.g. `"physical file unavailable"`, `"File not found"`)
+- **Payload to adapter:**
   ```json
   {
+    "analysisId": "...",
     "type": "DOCUMENT",
-    "instruction": "Summarize this document.",
-    "inputFiles": ["65f...1a2"]
+    "instruction": "...",
+    "inputFiles": [
+      {
+        "fileId": "...",
+        "filename": "report-timestamp-rand.pdf",
+        "originalName": "report.pdf",
+        "mimeType": "application/pdf",
+        "size": 1380,
+        "storageKey": "uploads/<projectId>/<filename>",
+        "status": "UPLOADED",
+        "classification": "INTERNAL",
+        "physicalPath": "C:\\...\\backend\\uploads\\<projectId>\\<filename>"
+      }
+    ]
   }
   ```
 
 ---
 
-## 10. Current Status
+## 7. Authorization
 
-### Implemented
-* JWT authentication and project-membership-based endpoint access control.
-* Mongoose schema for file metadata (`File.js`) and database index optimizations.
-* Metadata registration, listing, and single-file retrieval endpoints.
-* File status (`PATCH`) and metadata deletion (`DELETE`) endpoints (Admin only).
-* Analysis job metadata registration (`Analysis.js`), which accepts and validates project-specific input file IDs.
-* Background database-polling analysis worker (`AnalysisWorker`) and AI adapter bridge (`AIAgentAdapter`).
+```
+Frontend → JWT (Bearer/Cookie) → authenticate middleware
+         → requireProjectAccess() → checks ProjectMember collection
+         → file controller → fileService
+```
 
-### Pending
-* Physical file upload handling (no local uploads handler or direct cloud storage pipeline exists).
-* File serving endpoint (retrieving the actual file content/stream).
-* RAG processing logic, embeddings generation, vector storage, and inference pipelines.
+1. **Authentication:** All requests require a valid JWT.
+2. **Project membership:** `requireProjectAccess()` checks `ProjectMember` table for `{ projectId, userId }`.
+3. **Cross-project isolation:** `fileController.getFileById` verifies `file.projectId === req.params.projectId`.
+4. **AI boundary:** Worker operates server-side; it never trusts client-supplied paths.
+
+---
+
+## 8. Frontend Integration
+
+### Upload a file
+```javascript
+const formData = new FormData();
+formData.append("file", fileInputElement.files[0]);
+formData.append("classification", "INTERNAL"); // optional
+
+const res = await fetch(`/api/projects/${projectId}/files`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${token}` },
+  body: formData,
+  // Do NOT set Content-Type — browser sets it with boundary automatically
+});
+const { data } = await res.json(); // data._id, data.storageKey
+```
+
+### Create analysis referencing the uploaded file
+```javascript
+await fetch(`/api/projects/${projectId}/analyses`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    type: "DOCUMENT",
+    instruction: "Summarize this document.",
+    inputFiles: [data._id],
+  }),
+});
+```
+
+---
+
+## 9. RAG Developer Handoff
+
+- **Physical file location:** Resolved by worker as `path.resolve(process.cwd(), file.storageKey)`
+- **File field:** `storageKey` — relative path string stored in MongoDB
+- **MIME type:** `mimeType` field — use to select parser (PDF, text, image, etc.)
+- **Analysis status updates:** `PATCH /api/analyses/:analysisId/status`
+- **Replace stub:** Edit `src/services/ai/aiAdapter.js` `processAnalysis()` method
+
+---
+
+## 10. Current Implementation Status
+
+### Implemented & Verified ✅
+- JWT authentication and project-membership-based endpoint authorization
+- `POST /api/projects/:projectId/files` — real `multipart/form-data` upload via multer
+- Physical file saved to `uploads/<projectId>/<uniqueFilename>` on the backend server disk
+- `storageKey` deterministically maps to the physical file location
+- MongoDB stores metadata only (no file bytes)
+- Filename sanitization and path-traversal protection
+- Unique filename generation (timestamp + random suffix) prevents collisions
+- Orphaned-file cleanup on validation/registration failure
+- `AnalysisWorker` — polls, resolves `File._id → storageKey → physicalPath`, dispatches to adapter
+- `AIAgentAdapter` — stub bridge (returns structured result; replace with real RAG implementation)
+- COMPLETED and FAILED status transitions with descriptive error messages
+- Worker does not crash on missing files (graceful FAILED transition)
+- All 29 integration tests passing
+- Full E2E test: 23/23 assertions passing
+
+### Pending (RAG team)
+- Real RAG/LLM inference in `src/services/ai/aiAdapter.js`
+- Vector store ingestion and embedding pipeline
+- File serving endpoint (streaming `GET /api/projects/:projectId/files/:fileId/content`)
+- Cloud/S3 storage migration (replace local disk storage if needed for production)

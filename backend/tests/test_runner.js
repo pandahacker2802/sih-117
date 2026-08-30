@@ -451,20 +451,21 @@ async function runTests() {
 
   // Test 7.1 — Register File Metadata (By User A)
   try {
+    const formData = new FormData();
+    const testFileContent = "test file content for sovereignty guidelines";
+    formData.append(
+      "file",
+      new Blob([testFileContent], { type: "application/pdf" }),
+      "sovereignty_guidelines.pdf"
+    );
+    formData.append("classification", "CONFIDENTIAL");
+
     const res = await fetch(`${BASE_URL}/projects/${env.projectAId}/files`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         "Authorization": `Bearer ${env.userToken}`,
       },
-      body: JSON.stringify({
-        filename: "sovereignty_guidelines.pdf",
-        "originalName": "sovereignty_guidelines.pdf",
-        "mimeType": "application/pdf",
-        size: 2048500,
-        storageKey: "uploads/project_alpha/sovereignty_guidelines.pdf",
-        classification: "CONFIDENTIAL",
-      }),
+      body: formData,
     });
     const status = res.status;
     const body = await res.json();

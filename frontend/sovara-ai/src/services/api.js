@@ -108,7 +108,34 @@ export const membersAPI = {
 // Files (project-scoped)
 export const filesAPI = {
   list: (projectId) => api.get(`/projects/${projectId}/files`),
-  register: (projectId, body) => api.post(`/projects/${projectId}/files`, body),
+
+  /**
+   * Upload a real file via multipart/form-data.
+   * @param {string} projectId
+   * @param {File} file - a browser File object from an <input type="file">
+   * @param {string} [classification] - optional classification enum
+   */
+  upload: async (projectId, file, classification = "INTERNAL") => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("classification", classification);
+
+    const res = await fetch(`${BASE_URL}/projects/${projectId}/files`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      // Do NOT set Content-Type — browser sets it with multipart boundary automatically
+      body: formData,
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      const error = new Error(json?.message || `Upload failed (${res.status})`);
+      error.status = res.status;
+      error.data = json;
+      throw error;
+    }
+    return json;
+  },
 };
 
 // Analyses (project-scoped)

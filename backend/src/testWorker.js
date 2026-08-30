@@ -1,10 +1,12 @@
 "use strict";
 
-require("dotenv").config();
-const fs = require("fs");
 const path = require("path");
+const envFile = process.env.NODE_ENV === "test" ? ".env.test" : ".env";
+require("dotenv").config({ path: path.join(__dirname, "..", envFile) });
+const fs = require("fs");
 const mongoose = require("mongoose");
 const { Analysis, File, User, Project } = require("./models");
+const analysisWorker = require("./services/ai/analysisWorker");
 
 async function runTest() {
   console.log("=== Starting Worker E2E Test ===");
@@ -12,6 +14,9 @@ async function runTest() {
   // 1. Connect to DB
   await mongoose.connect(process.env.MONGODB_URI);
   console.log("Connected to MongoDB.");
+  
+  // Start the background worker for the test
+  analysisWorker.start();
 
   // Retrieve seed data
   const user = await User.findOne({ email: "admin@example.com" });
@@ -109,6 +114,7 @@ async function runTest() {
   }
   console.log("\nCleaned up dummy file.");
   
+  analysisWorker.stop();
   await mongoose.connection.close();
   console.log("=== Worker E2E Test Completed ===");
 }
