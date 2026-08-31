@@ -2,3 +2,13 @@
 **/.env
 .env.test
 **/.env.test
+
+# Local RAG data
+chroma_db/
+**/chroma_db/
+
+# Uploaded files
+uploads/
+**/uploads/
+
+src/services/ai/aiAdapter.backup.js
