@@ -8,3 +8,17 @@ __pycache__/
 **/__pycache__/
 *.pyc
 chroma_db/
+**/chroma_db/
+node_modules/
+**/node_modules/
+deps/
+**/deps/
+dist/
+**/dist/
+build/
+**/build/
+.next/
+**/.next/
+*.log
+**/uploads/
+

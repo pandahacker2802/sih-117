@@ -3,6 +3,8 @@ import { BookOpen, Check, FileText, Folder, Paperclip, Send, Wrench, ExternalLin
 import { useAuth } from "../context/AuthContext";
 import { analysesAPI, filesAPI } from "../services/api";
 
+const AI_AGENT_URL = import.meta.env.VITE_AI_AGENT_URL || "http://localhost:3001";
+
 function AIWorkspace() {
 	const { activeProject } = useAuth();
 	const [prompt, setPrompt] = useState("");
@@ -240,7 +242,6 @@ function AIWorkspace() {
 							}
 						: msg
 				)
-			);
 		}
 	}
 
