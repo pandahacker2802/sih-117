@@ -1,3 +1,4 @@
+import os
 import chromadb
 import requests
 
@@ -15,7 +16,7 @@ LLM_MODEL = "gemma3:4b"
 RELEVANCE_THRESHOLD = 300
 
 COLLECTION_NAME = "industrial_documents"
-CHROMA_PATH = r"D:\RAG\chroma_db"
+CHROMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db")
 
 NO_ANSWER = (
     "I could not find this information in the provided documents."
@@ -30,7 +31,7 @@ client = chromadb.PersistentClient(
     path=CHROMA_PATH
 )
 
-collection = client.get_collection(
+collection = client.get_or_create_collection(
     name=COLLECTION_NAME
 )
 

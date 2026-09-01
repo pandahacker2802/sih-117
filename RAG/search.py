@@ -1,3 +1,4 @@
+import os
 import chromadb
 import requests
 
@@ -20,11 +21,13 @@ def create_embedding(text):
 
 
 # Connect to local ChromaDB
+CHROMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db")
+
 client = chromadb.PersistentClient(
-    path="./chroma_db"
+    path=CHROMA_PATH
 )
 
-collection = client.get_collection(
+collection = client.get_or_create_collection(
     name="industrial_documents"
 )
 

@@ -14,7 +14,7 @@ from PIL import Image
 
 DOCUMENTS_FOLDER = "documents"
 
-CHROMA_PATH = "./chroma_db"
+CHROMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db")
 COLLECTION_NAME = "industrial_documents"
 
 OLLAMA_URL = "http://localhost:11434/api"
@@ -81,26 +81,22 @@ def create_embedding(text):
 # ============================================================
 
 def extract_pdf_pages(pdf_path):
-
-    document = pymupdf.open(pdf_path)
-
-    pages = []
-
-    for page_number, page in enumerate(document, start=1):
-
-        text = page.get_text().strip()
-
-        if text:
-
-            pages.append({
-                "page": page_number,
-                "text": text,
-                "type": "pdf"
-            })
-
-    document.close()
-
-    return pages
+    try:
+        document = pymupdf.open(pdf_path)
+        pages = []
+        for page_number, page in enumerate(document, start=1):
+            text = page.get_text().strip()
+            if text:
+                pages.append({
+                    "page": page_number,
+                    "text": text,
+                    "type": "pdf"
+                })
+        document.close()
+        return pages
+    except Exception as error:
+        print(f"Error reading PDF text: {error}")
+        return []
 
 
 # ============================================================
@@ -108,38 +104,32 @@ def extract_pdf_pages(pdf_path):
 # ============================================================
 
 def extract_scanned_pdf_pages(pdf_path):
-
-    document = pymupdf.open(pdf_path)
-
-    pages = []
-
-    for page_number, page in enumerate(document, start=1):
-
-        pixmap = page.get_pixmap(
-            matrix=pymupdf.Matrix(1.5, 1.5)
-        )
-
-        image = Image.frombytes(
-            "RGB",
-            [pixmap.width, pixmap.height],
-            pixmap.samples
-        )
-
-        text = pytesseract.image_to_string(
-            image
-        ).strip()
-
-        if text:
-
-            pages.append({
-                "page": page_number,
-                "text": text,
-                "type": "ocr"
-            })
-
-    document.close()
-
-    return pages
+    try:
+        document = pymupdf.open(pdf_path)
+        pages = []
+        for page_number, page in enumerate(document, start=1):
+            pixmap = page.get_pixmap(
+                matrix=pymupdf.Matrix(1.5, 1.5)
+            )
+            image = Image.frombytes(
+                "RGB",
+                [pixmap.width, pixmap.height],
+                pixmap.samples
+            )
+            text = pytesseract.image_to_string(
+                image
+            ).strip()
+            if text:
+                pages.append({
+                    "page": page_number,
+                    "text": text,
+                    "type": "ocr"
+                })
+        document.close()
+        return pages
+    except Exception as error:
+        print(f"Error reading scanned PDF: {error}")
+        return []
 
 
 # ============================================================
@@ -147,21 +137,21 @@ def extract_scanned_pdf_pages(pdf_path):
 # ============================================================
 
 def extract_image(image_path):
-
-    image = Image.open(image_path)
-
-    text = pytesseract.image_to_string(
-        image
-    ).strip()
-
-    if not text:
+    try:
+        image = Image.open(image_path)
+        text = pytesseract.image_to_string(
+            image
+        ).strip()
+        if not text:
+            return []
+        return [{
+            "page": 1,
+            "text": text,
+            "type": "ocr"
+        }]
+    except Exception as error:
+        print(f"Error OCR reading image: {error}")
         return []
-
-    return [{
-        "page": 1,
-        "text": text,
-        "type": "ocr"
-    }]
 
 
 # ============================================================
@@ -197,8 +187,8 @@ def process_file(file_path):
         else:
 
             print(
-                "No text detected. "
-                "Running OCR..."
+                "No text detected or failed to parse PDF structure. "
+                "Attempting OCR..."
             )
 
             pages = extract_scanned_pdf_pages(
@@ -225,6 +215,38 @@ def process_file(file_path):
         pages = extract_image(
             file_path
         )
+
+    # --------------------------------------------------------
+    # PLAIN TEXT / MARKDOWN / CSV
+    # --------------------------------------------------------
+
+    elif extension in [
+        ".txt",
+        ".md",
+        ".csv",
+        ".json",
+        ".log"
+    ]:
+
+        print(
+            "Plain text file detected."
+        )
+
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read().strip()
+
+            if text:
+                pages = [{
+                    "page": 1,
+                    "text": text,
+                    "type": "text"
+                }]
+            else:
+                pages = []
+        except Exception as error:
+            print(f"Error reading text file: {error}")
+            pages = []
 
     # --------------------------------------------------------
     # UNSUPPORTED
