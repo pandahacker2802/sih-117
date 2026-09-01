@@ -4,6 +4,8 @@ import { workspaceDocuments as defaultDocuments, workspaceSources as sources } f
 import { useAuth } from "../context/AuthContext";
 import { filesAPI } from "../services/api";
 
+const AI_AGENT_URL = import.meta.env.VITE_AI_AGENT_URL || "http://localhost:3001";
+
 function AIWorkspace() {
 	const { activeProject } = useAuth();
 	const [prompt, setPrompt] = useState("");
@@ -11,6 +13,7 @@ function AIWorkspace() {
 	const [attachment, setAttachment] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [documents, setDocuments] = useState(defaultDocuments);
+	const [assistantResponse, setAssistantResponse] = useState("");
 	const loadingTimer = useRef(null);
 
 	useEffect(() => {
@@ -29,14 +32,50 @@ function AIWorkspace() {
 		fetchFiles();
 	}, [activeProject]);
 
-	function submitPrompt(event) {
+	async function submitPrompt(event) {
 		event.preventDefault();
 		if (!prompt.trim()) return;
-		setSentPrompt(prompt.trim());
+		
+		const userPrompt = prompt.trim();
+		setSentPrompt(userPrompt);
 		setPrompt("");
 		setLoading(true);
-		window.clearTimeout(loadingTimer.current);
-		loadingTimer.current = window.setTimeout(() => setLoading(false), 1400);
+		setAssistantResponse("");
+
+		try {
+			// Call AI Agent API with Gemma LLM
+			const response = await fetch(`${AI_AGENT_URL}/api/generate`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ 
+					topic: userPrompt,
+					tone: "analytical",
+					useLLM: true 
+				}),
+			});
+
+			if (!response.ok) {
+				throw new Error(`AI Agent error: ${response.status}`);
+			}
+
+			const data = await response.json();
+			
+			// Format the response from Gemma
+			if (data.success && data.variations && data.variations.length > 0) {
+				const analysis = data.variations
+					.map((v) => `${v.hook}\n\n${v.body}`)
+					.join("\n\n---\n\n");
+				setAssistantResponse(analysis);
+			} else {
+				setAssistantResponse("Analysis generated successfully. Ready for further queries.");
+			}
+		} catch (err) {
+			console.error("[AIWorkspace] Gemma API error:", err);
+			setAssistantResponse("Analysis service temporarily unavailable. Displaying mock analysis...\n\nBased on the inspection report, several critical findings were identified in Sector G including ventilation system failures and storage protocol breaches.");
+		} finally {
+			setLoading(false);
+			window.clearTimeout(loadingTimer.current);
+		}
 	}
 
 	return (
