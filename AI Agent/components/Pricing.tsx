@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check, ShieldAlert, Sparkles, HelpCircle } from "lucide-react";
+import { Check } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface PricingProps {

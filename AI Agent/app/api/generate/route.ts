@@ -171,7 +171,7 @@ export async function POST(request: Request) {
     const customizedVariations = variations.map((item) => {
       // Modify hooks to merge topic context subtly
       let displayHook = item.hook;
-      let displayBody = item.body;
+      const displayBody = item.body;
       
       // Inject user's topic keywords dynamically into the mock hooks
       const cleanTopic = topic.trim().replace(/\.$/, "");
@@ -192,9 +192,10 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true, variations: customizedVariations });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json(
-      { error: error?.message || "Internal server error" },
+      { error: message },
       { status: 500 }
     );
   }

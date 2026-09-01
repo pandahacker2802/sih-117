@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Copy, Check, Info, RefreshCw, Lock, MessageSquare, ThumbsUp } from "lucide-react";
+import { Sparkles, Copy, Check, Info, RefreshCw, MessageSquare, ThumbsUp } from "lucide-react";
 import { HookVariation } from "../app/api/generate/route";
 
 interface WorkspaceProps {
@@ -74,7 +74,7 @@ export default function Workspace({
       <div className="text-center mb-12">
         <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">AI Post Generator</h2>
         <p className="text-sm sm:text-base text-slate-400 max-w-md mx-auto">
-          Input your topic, select your brand's voice, and generate professional post templates in real-time.
+          Input your topic, select your brand&apos;s voice, and generate professional post templates in real-time.
         </p>
       </div>
 
@@ -265,7 +265,7 @@ export default function Workspace({
                 </div>
                 <h3 className="text-lg font-bold text-white mb-2">No Post Drafts Generated Yet</h3>
                 <p className="text-slate-500 text-sm max-w-xs leading-normal">
-                  Write down your post concept or topic idea in the left form and click "Generate Hooks" to see magic happen.
+                  Write down your post concept or topic idea in the left form and click &quot;Generate Hooks&quot; to see magic happen.
                 </p>
               </motion.div>
             )}
