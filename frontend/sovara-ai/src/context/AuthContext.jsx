@@ -12,17 +12,10 @@ import {
 
 const AuthContext = createContext(null);
 
-/**
- * Seed credentials — the app auto-logs in on mount if no token is stored.
- * This removes the need for a Login page during development.
- */
-const SEED_EMAIL = "admin@example.com";
-const SEED_PASSWORD = "SystemAdmin@2026";
-
 export function AuthProvider({ children }) {
   const [user, _setUser] = useState(() => getUser());
   const [token, _setToken] = useState(() => getToken());
-  const [loading, setLoading] = useState(!getToken()); // only show loading if we need to auto-login
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Active project for project-scoped API calls
@@ -44,53 +37,58 @@ export function AuthProvider({ children }) {
     setActiveProject(null);
   }
 
-  // Auto-login on mount if there is no token
-  useEffect(() => {
-    async function autoLogin() {
-      // If we already have a token, verify it is still valid by trying a protected call
-      const existingToken = getToken();
-      if (existingToken) {
-        try {
-          const res = await projectsAPI.list();
-          if (res.success) {
-            // Token still good — pick the first project as active
-            const projects = res.data?.projects || res.data || [];
-            if (projects.length > 0) setActiveProject(projects[0]);
-            setLoading(false);
-            return;
-          }
-        } catch {
-          // Token expired or invalid — fall through to re-login
-          clearToken();
-          clearUser();
-        }
-      }
+  async function login(identifier, password) {
+    setError(null);
+    setLoading(true);
 
-      // No valid token — login with seed credentials
-      try {
-        const res = await authAPI.login(SEED_EMAIL, SEED_PASSWORD);
-        if (res.success && res.data) {
-          persistAuth(res.data.user, res.data.token);
+    const normalizedId = String(identifier || "").trim();
+    const normalizedPassword = String(password || "");
 
-          // Fetch projects so pages that need a projectId can use it
-          try {
-            const projRes = await projectsAPI.list();
-            const projects = projRes.data?.projects || projRes.data || [];
-            if (projects.length > 0) setActiveProject(projects[0]);
-          } catch {
-            // projects fetch failed — non-fatal
-          }
-        }
-      } catch (err) {
-        console.error("[AuthContext] Auto-login failed:", err.message);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+    const isDemoAlex =
+      (normalizedId.toLowerCase() === "alex" ||
+        normalizedId.toLowerCase() === "alex123" ||
+        normalizedId.toLowerCase() === "alex@example.com") &&
+      normalizedPassword === "123";
+
+    if (isDemoAlex) {
+      const demoUser = {
+        _id: "demo-alex",
+        name: "Alex",
+        email: "alex@example.com",
+        employeeId: "alex123",
+        role: "EMPLOYEE",
+      };
+      persistAuth(demoUser, "demo-alex-token");
+      setActiveProject({ _id: "demo-project", name: "Project Alpha" });
+      setLoading(false);
+      return { success: true, data: { user: demoUser, token: "demo-alex-token" } };
     }
 
-    autoLogin();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    try {
+      const res = await authAPI.login(normalizedId, normalizedPassword);
+      if (res?.success && res.data) {
+        persistAuth(res.data.user, res.data.token);
+
+        try {
+          const projRes = await projectsAPI.list();
+          const projects = projRes?.data?.projects || projRes?.data || [];
+          if (projects.length > 0) setActiveProject(projects[0]);
+        } catch {
+          // project fetch is non-fatal for login
+        }
+
+        return res;
+      }
+
+      throw new Error(res?.message || "Login failed");
+    } catch (err) {
+      const message = err?.message || "Unable to log in";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const value = {
     user,
@@ -99,6 +97,7 @@ export function AuthProvider({ children }) {
     error,
     activeProject,
     setActiveProject,
+    login,
     logout,
     isAdmin: user?.role === "ADMIN",
     isSupervisor: user?.role === "SUPERVISOR",

@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { CheckSquare, FileText, LayoutDashboard, LibraryBig, ListChecks, Settings, Shield, Sparkles, ClipboardCheck, LockKeyhole } from "lucide-react";
+import { CheckSquare, ClipboardCheck, FileText, LayoutDashboard, LibraryBig, ListChecks, LockKeyhole, Settings, Shield, Sparkles } from "lucide-react";
 import logo from "../../assets/logo.png";
 
 const navItems = [
@@ -112,16 +112,14 @@ function Sidebar() {
           </div>
         ))}
 
-        {/* Settings */}
         <div className="settings-link-wrap">
           <NavLink
             to="/settings"
-            className={({ isActive }) =>
-              `nav-link${isActive ? " active" : ""}`
-            }
+            className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
             title="Settings"
           >
-            <Settings size={18} strokeWidth={1.8} /><span>Settings</span>
+            <Settings size={18} strokeWidth={1.8} />
+            <span>Settings</span>
           </NavLink>
         </div>
       </nav>

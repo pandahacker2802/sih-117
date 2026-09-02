@@ -83,7 +83,7 @@ const updateProject = async (projectId, updates, actorId) => {
   const project = await Project.findByIdAndUpdate(
     projectId,
     { $set: sanitized },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   ).populate("createdBy", "-passwordHash");
 
   if (!project) {
@@ -106,7 +106,7 @@ const archiveProject = async (projectId, actorId) => {
   const project = await Project.findByIdAndUpdate(
     projectId,
     { $set: { status: "ARCHIVED" } },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   if (!project) {

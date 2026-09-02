@@ -115,7 +115,7 @@ const updateUser = async (userId, updates, actorId) => {
   const user = await User.findByIdAndUpdate(
     userId,
     { $set: sanitized },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   ).select("-passwordHash");
 
   if (!user) {
@@ -139,7 +139,7 @@ const activateUser = async (userId, actorId) => {
   const user = await User.findByIdAndUpdate(
     userId,
     { $set: { isActive: true } },
-    { new: true }
+    { returnDocument: "after" }
   ).select("-passwordHash");
 
   if (!user) {
@@ -161,7 +161,7 @@ const deactivateUser = async (userId, actorId) => {
   const user = await User.findByIdAndUpdate(
     userId,
     { $set: { isActive: false } },
-    { new: true }
+    { returnDocument: "after" }
   ).select("-passwordHash");
 
   if (!user) {

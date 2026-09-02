@@ -1,24 +1,44 @@
-import { useState } from "react";
-import { Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { UserCircle2, Mail, Briefcase, BadgeCheck } from "lucide-react";
 
 function Profile() {
   const { user } = useAuth();
-  const [editing, setEditing] = useState(false);
 
   const profile = {
-    name: user?.name || "Unknown",
-    role: user?.role || "Unknown",
-    email: user?.email || "Unknown",
-    organization: user?.department || "Sovara Industrial Systems",
+    name: user?.name || "Alex Morgan",
+    email: user?.email || "alex@company.test",
+    employeeId: user?.employeeId || "alex123",
+    role: user?.role || "Employee",
   };
 
   return (
     <main className="account-page">
-      <header className="account-header"><div><p className="workspace-label">Account / Identity</p><h1>Profile</h1><p>Manage the identity attached to your local workspace.</p></div></header>
-      <section className="account-grid">
-        <article className="account-panel profile-summary"><div className="profile-avatar"><UserRound size={32} /></div><h2>{profile.name}</h2><p>{profile.role}</p><span className="account-badge"><ShieldCheck size={14} /> Local identity</span></article>
-        <section className="account-panel profile-details"><div className="security-panel-heading"><h2>Personal details</h2><span className="audit-badge">{editing ? "EDITING" : "READ ONLY"}</span></div><div className="detail-fields">{editing ? <><label><span>Full name</span><input defaultValue={profile.name} /></label><label><span>Email address</span><input defaultValue={profile.email} /></label><label><span>Organization</span><input defaultValue={profile.organization} /></label></> : <><div><span>Full name</span><strong>{profile.name}</strong></div><div><span>Email address</span><strong><Mail size={15} /> {profile.email}</strong></div><div><span>Organization</span><strong>{profile.organization}</strong></div></>}</div>{/* Backend connection point: PATCH /api/me when profile editing is enabled. */}<button className="button button-primary" type="button" onClick={() => setEditing(!editing)}>{editing ? "Save profile" : "Edit profile"}</button></section>
+      <header className="account-header">
+        <div>
+          <p className="workspace-label">Identity / Account</p>
+          <h1>Profile</h1>
+        </div>
+      </header>
+
+      <section className="account-panel profile-panel">
+        <div className="profile-hero">
+          <div className="profile-avatar"><UserCircle2 size={52} /></div>
+          <div>
+            <h2>{profile.name}</h2>
+            <p><BadgeCheck size={15} /> {profile.role}</p>
+          </div>
+        </div>
+
+        <div className="profile-grid">
+          <div className="profile-item">
+            <Mail size={18} />
+            <div><small>Email</small><strong>{profile.email}</strong></div>
+          </div>
+          <div className="profile-item">
+            <Briefcase size={18} />
+            <div><small>Employee ID</small><strong>{profile.employeeId}</strong></div>
+          </div>
+        </div>
       </section>
     </main>
   );

@@ -92,7 +92,7 @@ const updateFileStatus = async (fileId, status) => {
   const file = await File.findByIdAndUpdate(
     fileId,
     { $set: { status } },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   );
 
   if (!file) {
@@ -106,7 +106,7 @@ const deleteFileMetadata = async (fileId, actorId) => {
   const file = await File.findByIdAndUpdate(
     fileId,
     { $set: { status: "DELETED" } },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   if (!file) {

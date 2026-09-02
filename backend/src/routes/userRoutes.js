@@ -6,29 +6,30 @@ const { createUserSchema, updateUserSchema } = require("../validators");
 const userController = require("../controllers/userController");
 
 const router = Router();
+const allowedUserRoles = ["ADMIN", "SUPERVISOR"];
 
 router.post(
   "/",
   authenticate,
-  requireRole("ADMIN"),
+  requireRole(...allowedUserRoles),
   validate(createUserSchema),
   userController.createUser
 );
 
-router.get("/", authenticate, requireRole("ADMIN"), userController.getUsers);
+router.get("/", authenticate, requireRole(...allowedUserRoles), userController.getUsers);
 
-router.get("/:id", authenticate, requireRole("ADMIN"), userController.getUserById);
+router.get("/:id", authenticate, requireRole(...allowedUserRoles), userController.getUserById);
 
 router.patch(
   "/:id",
   authenticate,
-  requireRole("ADMIN"),
+  requireRole(...allowedUserRoles),
   validate(updateUserSchema),
   userController.updateUser
 );
 
-router.patch("/:id/activate", authenticate, requireRole("ADMIN"), userController.activateUser);
+router.patch("/:id/activate", authenticate, requireRole(...allowedUserRoles), userController.activateUser);
 
-router.patch("/:id/deactivate", authenticate, requireRole("ADMIN"), userController.deactivateUser);
+router.patch("/:id/deactivate", authenticate, requireRole(...allowedUserRoles), userController.deactivateUser);
 
 module.exports = router;

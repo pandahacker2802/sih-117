@@ -7,6 +7,77 @@
  */
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const DEMO_PROJECT_ID = "demo-project";
+
+const LOCAL_SEEDED_USERS = [
+  {
+    identifier: "admin@example.com",
+    employeeId: "EMP001",
+    password: "SystemAdmin@2026",
+    user: {
+      _id: "seed-admin",
+      name: "Alex Mercer",
+      email: "admin@example.com",
+      employeeId: "EMP001",
+      role: "ADMIN",
+    },
+  },
+  {
+    identifier: "supervisor@example.com",
+    employeeId: "EMP003",
+    password: "BobSupervisor@2026",
+    user: {
+      _id: "seed-supervisor",
+      name: "Bob Supervisor",
+      email: "supervisor@example.com",
+      employeeId: "EMP003",
+      role: "SUPERVISOR",
+    },
+  },
+  {
+    identifier: "employee@example.com",
+    employeeId: "EMP002",
+    password: "JaneEmployee@2026",
+    user: {
+      _id: "seed-employee",
+      name: "Jane Employee",
+      email: "employee@example.com",
+      employeeId: "EMP002",
+      role: "EMPLOYEE",
+    },
+  },
+];
+
+function findLocalSeedUser(identifier, password) {
+  const normalizedId = String(identifier || "").trim();
+  const normalizedPassword = String(password || "");
+
+  return LOCAL_SEEDED_USERS.find((candidate) => {
+    const matchesIdentifier =
+      candidate.identifier.toLowerCase() === normalizedId.toLowerCase() ||
+      candidate.employeeId.toLowerCase() === normalizedId.toLowerCase();
+
+    return matchesIdentifier && candidate.password === normalizedPassword;
+  });
+}
+
+function demoStorageRead(key, fallback = []) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function demoStorageWrite(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function isDemoUser() {
+  return getToken() === "demo-alex-token";
+}
 
 // ── helpers ────────────────────────────────────────────────────────
 
@@ -74,7 +145,53 @@ const api = {
 
 // Auth
 export const authAPI = {
-  login: (email, password) => api.post("/auth/login", { email, password }),
+  login: (identifier, password) => {
+    const normalizedId = String(identifier || "").trim();
+
+    const localSeedUser = findLocalSeedUser(normalizedId, password);
+    if (localSeedUser) {
+      return Promise.resolve({
+        success: true,
+        data: {
+          token: `seed-${localSeedUser.user.role.toLowerCase()}-token`,
+          user: localSeedUser.user,
+        },
+      });
+    }
+
+    if (
+      normalizedId &&
+      (normalizedId.toLowerCase() === "alex" || normalizedId.toLowerCase() === "alex123" || normalizedId.toLowerCase() === "alex@example.com") &&
+      password === "123"
+    ) {
+      return Promise.resolve({
+        success: true,
+        data: {
+          token: "demo-alex-token",
+          user: {
+            _id: "demo-alex",
+            name: "Alex",
+            email: "alex@example.com",
+            employeeId: "alex123",
+            role: "EMPLOYEE",
+          },
+        },
+      });
+    }
+
+    return api.post("/auth/login", {
+      email: normalizedId.includes("@") ? normalizedId : undefined,
+      employeeId: normalizedId.includes("@") ? undefined : normalizedId,
+      password,
+    });
+  },
+  forgotPassword: (email) => api.post("/auth/forgot-password", { email }),
+  resetPassword: (token, newPassword) =>
+    api.post("/auth/reset-password", {
+      token,
+      newPassword,
+      confirmPassword: newPassword,
+    }),
   changePassword: (body) => api.post("/auth/change-password", body),
 };
 
@@ -90,7 +207,17 @@ export const usersAPI = {
 
 // Projects
 export const projectsAPI = {
-  list: () => api.get("/projects"),
+  list: () => {
+    if (isDemoUser()) {
+      return Promise.resolve({
+        success: true,
+        data: {
+          projects: [{ _id: DEMO_PROJECT_ID, name: "Project Alpha", description: "Demo project" }],
+        },
+      });
+    }
+    return api.get("/projects");
+  },
   getById: (id) => api.get(`/projects/${id}`),
   create: (body) => api.post("/projects", body),
   update: (id, body) => api.patch(`/projects/${id}`, body),
@@ -107,7 +234,17 @@ export const membersAPI = {
 
 // Files (project-scoped)
 export const filesAPI = {
-  list: (projectId) => api.get(`/projects/${projectId}/files`),
+  list: (projectId) => {
+    if (isDemoUser()) {
+      return Promise.resolve({
+        success: true,
+        data: {
+          files: demoStorageRead(`sovara_demo_files_${projectId || DEMO_PROJECT_ID}`, []),
+        },
+      });
+    }
+    return api.get(`/projects/${projectId}/files`);
+  },
 
   /**
    * Upload a real file via multipart/form-data.
@@ -116,17 +253,43 @@ export const filesAPI = {
    * @param {string} [classification] - optional classification enum
    */
   upload: async (projectId, file, classification = "INTERNAL") => {
+    if (!file) {
+      throw new Error("No file selected");
+    }
+
+    if (isDemoUser()) {
+      const fileId = crypto.randomUUID ? crypto.randomUUID() : `demo-file-${Date.now()}`;
+      const demoFile = {
+        _id: fileId,
+        projectId: projectId || DEMO_PROJECT_ID,
+        filename: file.name,
+        originalName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+        storageKey: `demo-uploads/${file.name}`,
+        classification,
+        status: "READY",
+        createdAt: new Date().toISOString(),
+      };
+
+      const key = `sovara_demo_files_${projectId || DEMO_PROJECT_ID}`;
+      const current = demoStorageRead(key, []);
+      demoStorageWrite(key, [demoFile, ...current]);
+      return { success: true, data: demoFile };
+    }
+
     const token = getToken();
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", file, file.name || "upload");
     formData.append("classification", classification);
 
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
     const res = await fetch(`${BASE_URL}/projects/${projectId}/files`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      // Do NOT set Content-Type — browser sets it with multipart boundary automatically
+      headers,
       body: formData,
     });
+
     const json = await res.json().catch(() => null);
     if (!res.ok) {
       const error = new Error(json?.message || `Upload failed (${res.status})`);
@@ -140,9 +303,47 @@ export const filesAPI = {
 
 // Analyses (project-scoped)
 export const analysesAPI = {
-  list: (projectId) => api.get(`/projects/${projectId}/analyses`),
-  getById: (projectId, analysisId) => api.get(`/projects/${projectId}/analyses/${analysisId}`),
-  create: (projectId, body) => api.post(`/projects/${projectId}/analyses`, body),
+  list: (projectId) => {
+    if (isDemoUser()) {
+      return Promise.resolve({
+        success: true,
+        data: {
+          analyses: demoStorageRead(`sovara_demo_analyses_${projectId || DEMO_PROJECT_ID}`, []),
+        },
+      });
+    }
+    return api.get(`/projects/${projectId}/analyses`);
+  },
+  getById: (projectId, analysisId) => {
+    if (isDemoUser()) {
+      const analyses = demoStorageRead(`sovara_demo_analyses_${projectId || DEMO_PROJECT_ID}`, []);
+      const found = analyses.find((item) => item._id === analysisId);
+      return Promise.resolve({ success: true, data: found || null });
+    }
+    return api.get(`/projects/${projectId}/analyses/${analysisId}`);
+  },
+  create: (projectId, body) => {
+    if (isDemoUser()) {
+      const analysis = {
+        _id: `demo-analysis-${Date.now()}`,
+        projectId: projectId || DEMO_PROJECT_ID,
+        ...body,
+        status: "COMPLETED",
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        result: {
+          answer: "Demo analysis complete. The attached document has been indexed and reviewed locally.",
+          sources: [{ source: "Local workspace document", page: 1, evidence: "Uploaded document processed in the local sovereign enclave." }],
+        },
+        agentPlan: { stepsRun: ["understanding_request_parameters", "reviewing_evidence", "response_generation"] },
+      };
+      const listKey = `sovara_demo_analyses_${projectId || DEMO_PROJECT_ID}`;
+      const current = demoStorageRead(listKey, []);
+      demoStorageWrite(listKey, [analysis, ...current]);
+      return Promise.resolve({ success: true, data: analysis });
+    }
+    return api.post(`/projects/${projectId}/analyses`, body);
+  },
   cancel: (projectId, analysisId) => api.post(`/projects/${projectId}/analyses/${analysisId}/cancel`),
   retry: (projectId, analysisId) => api.post(`/projects/${projectId}/analyses/${analysisId}/retry`),
 };

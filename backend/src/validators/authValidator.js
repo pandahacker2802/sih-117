@@ -3,8 +3,12 @@
 const Joi = require("joi");
 
 const loginSchema = Joi.object({
-  email: Joi.string().email({ tlds: { allow: false } }).lowercase().trim().required(),
-  password: Joi.string().min(8).required(),
+  email: Joi.string().email({ tlds: { allow: false } }).lowercase().trim(),
+  employeeId: Joi.string().trim(),
+  password: Joi.string().min(3).required(),
+}).or("email", "employeeId").messages({
+  "object.missing": "Provide either an email or employeeId",
+  "object.or": "Provide either an email or employeeId",
 });
 
 const changePasswordSchema = Joi.object({

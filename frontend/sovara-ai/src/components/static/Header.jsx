@@ -18,9 +18,9 @@ function Header() {
     "/deliverables": "Deliverables",
     "/approvals": "Approvals",
     "/security": "Security Center",
-    "/settings": "Settings",
-    "/profile": "Profile",
     "/notifications": "Notifications",
+    "/profile": "Profile",
+    "/settings": "Settings",
   };
 
   // Fetch unread notification count
@@ -65,9 +65,7 @@ function Header() {
 
         {/* Actions */}
         <div className="header-icon-actions">
-
-          {/* Notifications */}
-          <Link className="header-icon-button" to="/notifications" aria-label="Notifications" style={{ position: "relative" }}>
+          <Link to="/notifications" className="header-icon-button" aria-label="Notifications" style={{ cursor: "pointer" }}>
             <Bell size={18} />
             {unreadCount > 0 && (
               <span style={{
@@ -77,9 +75,9 @@ function Header() {
             )}
           </Link>
 
-          {/* Profile */}
-          <Link className="profile-button" to="/profile" aria-label="Profile" title={user?.name || "Profile"}><UserRound size={17} /></Link>
-
+          <Link to="/profile" className="profile-button" aria-label="Profile" title={user?.name || "Profile"} style={{ cursor: "pointer" }}>
+            <UserRound size={17} />
+          </Link>
         </div>
       </div>
 

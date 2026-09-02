@@ -57,7 +57,7 @@ class AnalysisWorker {
             startedAt: new Date() 
           } 
         },
-        { new: true }
+        { returnDocument: 'after' }
       );
 
       if (analysis) {
@@ -115,9 +115,9 @@ class AnalysisWorker {
           throw new Error("missing storageKey");
         }
 
-        // Determine physical file path relative to project workspace
-        const physicalPath = path.resolve(process.cwd(), file.storageKey);
-        
+const backendRoot = path.resolve(__dirname, "../../..");
+      const physicalPath = path.resolve(backendRoot, file.storageKey);
+
         // Check physical file availability
         if (!fs.existsSync(physicalPath)) {
           throw new Error("physical file unavailable");

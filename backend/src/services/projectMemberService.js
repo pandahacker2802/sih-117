@@ -70,7 +70,7 @@ const updateMemberRole = async ({ projectId, userId, role }, actorId) => {
   const member = await ProjectMember.findOneAndUpdate(
     { projectId, userId },
     { $set: { role } },
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   )
     .populate("userId", "-passwordHash")
     .populate("addedBy", "-passwordHash");

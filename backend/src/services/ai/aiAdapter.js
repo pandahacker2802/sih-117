@@ -1,15 +1,20 @@
 "use strict";
 
+const fs = require("fs");
 const { spawn } = require("child_process");
 const path = require("path");
 
+const PROJECT_ROOT = path.resolve(__dirname, "../../../../");
+const VENV_PYTHON = path.resolve(PROJECT_ROOT, "RAG/.venv/bin/python");
+const FALLBACK_PYTHON = "python";
+
 const PYTHON_PATH =
   process.env.RAG_PYTHON_PATH ||
-  "python";
+  (fs.existsSync(VENV_PYTHON) ? VENV_PYTHON : FALLBACK_PYTHON);
 
 const RAG_BRIDGE =
   process.env.RAG_BRIDGE_PATH ||
-  path.resolve(__dirname, "../../../../RAG/rag_bridge.py");
+  path.resolve(PROJECT_ROOT, "RAG/rag_bridge.py");
 
 class AIAgentAdapter {
   async processAnalysis(payload) {

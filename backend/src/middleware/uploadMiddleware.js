@@ -4,6 +4,8 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
+const BACKEND_ROOT = path.resolve(__dirname, "../..");
+
 // Helper to sanitize filename and prevent path traversal
 const sanitizeFilename = (filename) => {
   if (!filename) return "file";
@@ -16,12 +18,11 @@ const sanitizeFilename = (filename) => {
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const projectId = req.params.projectId;
-    // Base uploads directory relative to process.cwd()
-    const uploadDir = path.resolve(process.cwd(), "uploads", projectId);
-    
+    const uploadDir = path.resolve(BACKEND_ROOT, "uploads", projectId);
+
     // Ensure directory exists
     fs.mkdirSync(uploadDir, { recursive: true });
-    
+
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {

@@ -27,11 +27,17 @@ const generateToken = (user) => {
   );
 };
 
-const login = async ({ email, password }, ipAddress) => {
-  const user = await User.findOne({ email });
+const login = async ({ email, employeeId, password }, ipAddress) => {
+  const query = email
+    ? { email: String(email).trim().toLowerCase() }
+    : employeeId
+      ? { employeeId: String(employeeId).trim() }
+      : null;
+
+  const user = query ? await User.findOne(query) : null;
 
   if (!user) {
-    auditService.createAuditLog({ action: "LOGIN_FAILED", metadata: { email }, ipAddress, status: "FAILED" }).catch(console.error);
+    auditService.createAuditLog({ action: "LOGIN_FAILED", metadata: { email: email || employeeId }, ipAddress, status: "FAILED" }).catch(console.error);
     throw new Error("Invalid credentials");
   }
 

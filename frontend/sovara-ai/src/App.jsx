@@ -2,6 +2,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/static/Header";
 import Sidebar from "./components/static/Sidebar";
 import { useAuth } from "./context/AuthContext";
+import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import CreateUser from "./pages/CreateUser";
 
 // Dashboard
 import Dashboard from "./pages/Dashboard";
@@ -13,13 +16,13 @@ import Knowledge from "./pages/Knowlegde_Hub";
 import Approvals from "./pages/Approvals";
 import Deliverables from "./pages/Deliverables";
 import Documents from "./pages/Documents";
-import SecurityCenter from "./pages/Security_Center";
+import SecurityCenter from "./pages/SecurityCentre";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
 
 function App() {
-  const { loading, error } = useAuth();
+  const { user, loading, error } = useAuth();
 
   if (loading) {
     return (
@@ -73,86 +76,39 @@ function App() {
     );
   }
 
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <div className="app-shell">
       <Sidebar />
       <div className="app-main">
         <Header />
         <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/workspace" element={<Workspace />} />
+          <Route path="/dashboard/tasks" element={<Tasks />} />
+          <Route path="/dashboard/knowledge" element={<Knowledge />} />
 
-        {/* =========================
-            DASHBOARD
-        ========================= */}
+          <Route path="/approvals" element={<Approvals />} />
+          <Route path="/deliverables" element={<Deliverables />} />
+          <Route path="/documents" element={<Documents />} />
+          <Route path="/security" element={<SecurityCenter />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/create-user" element={<CreateUser />} />
 
-        <Route
-          path="/dashboard"
-          element={<Dashboard />}
-        />
-
-        <Route
-          path="/dashboard/workspace"
-          element={<Workspace />}
-        />
-
-        <Route
-          path="/dashboard/tasks"
-          element={<Tasks />}
-        />
-
-        <Route
-          path="/dashboard/knowledge"
-          element={<Knowledge />}
-        />
-
-
-        {/* =========================
-            OTHER PAGES
-        ========================= */}
-
-        <Route
-          path="/approvals"
-          element={<Approvals />}
-        />
-
-        <Route
-          path="/deliverables"
-          element={<Deliverables />}
-        />
-
-        <Route
-          path="/documents"
-          element={<Documents />}
-        />
-
-        <Route
-          path="/security"
-          element={<SecurityCenter />}
-        />
-
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/notifications" element={<Notifications />} />
-
-
-        {/* =========================
-            DEFAULT ROUTE
-        ========================= */}
-
-        <Route
-          path="/"
-          element={<Navigate to="/dashboard" replace />}
-        />
-
-
-        {/* =========================
-            404 / UNKNOWN ROUTE
-        ========================= */}
-
-        <Route
-          path="*"
-          element={<Navigate to="/dashboard" replace />}
-        />
-
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </div>
     </div>

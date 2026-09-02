@@ -118,7 +118,7 @@ const updateReport = async (reportId, updates) => {
   const updated = await Report.findByIdAndUpdate(
     reportId,
     { $set: sanitized },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   );
 
   return updated;
@@ -138,7 +138,7 @@ const submitForReview = async (reportId, actorId) => {
   const updated = await Report.findByIdAndUpdate(
     reportId,
     { $set: { status: "PENDING_REVIEW" } },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   auditService.createAuditLog({
@@ -173,7 +173,7 @@ const approveReport = async (reportId, reviewerId, reviewComment) => {
         reviewedAt: new Date(),
       },
     },
-    { new: true }
+    { returnDocument: "after" }
   )
     .populate("createdBy", "-passwordHash")
     .populate("reviewedBy", "-passwordHash");
@@ -211,7 +211,7 @@ const rejectReport = async (reportId, reviewerId, reviewComment) => {
         reviewedAt: new Date(),
       },
     },
-    { new: true }
+    { returnDocument: "after" }
   )
     .populate("createdBy", "-passwordHash")
     .populate("reviewedBy", "-passwordHash");

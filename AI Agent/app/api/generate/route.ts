@@ -18,8 +18,9 @@ export interface HookVariation {
 }
 
 // Gemma LLM Configuration
-const LLM_ENDPOINT = process.env.LLM_ENDPOINT || "http://localhost:11434";
-const USE_LOCAL_LLM = process.env.LLM_TYPE === "gemma";
+const LLM_ENDPOINT = process.env.LLM_ENDPOINT || process.env.OLLAMA_URL || "http://localhost:11434";
+const LLM_MODEL = process.env.LLM_MODEL || process.env.OLLAMA_LLM_MODEL || "gemma3:4b";
+const USE_LOCAL_LLM = ["gemma", "ollama"].includes(String(process.env.LLM_TYPE || "").toLowerCase()) || process.env.VITE_LLM_ENABLED === "true";
 
 // Function to call local Gemma model via Ollama
 async function generateWithGemma(topic: string, tone: string): Promise<HookVariation[]> {
@@ -46,17 +47,33 @@ Generate realistic, engaging content.`;
     const response = await axios.post(
       `${LLM_ENDPOINT}/api/generate`,
       {
-        model: "gemma:4b",
+        model: LLM_MODEL,
         prompt: prompt,
         stream: false,
       },
       { timeout: 30000 }
     );
 
+    const rawResponse = typeof response?.data === "string" ? response.data : response?.data?.response || "";
+
     try {
-      return JSON.parse(response.data.response);
+      const parsed = JSON.parse(rawResponse);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      if (parsed && Array.isArray(parsed.variations)) {
+        return parsed.variations;
+      }
+      return getMockHooks(tone);
     } catch {
-      // If JSON parsing fails, return mock data
+      const trimmed = rawResponse.trim();
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        try {
+          return JSON.parse(trimmed);
+        } catch {
+          // Safe fallback to mock data only when the model output is malformed.
+        }
+      }
       return getMockHooks(tone);
     }
   } catch (error) {

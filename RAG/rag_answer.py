@@ -7,10 +7,10 @@ import requests
 # OLLAMA SETTINGS
 # ============================================================
 
-OLLAMA_URL = "http://localhost:11434/api"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api")
 
-EMBEDDING_MODEL = "nomic-embed-text"
-LLM_MODEL = "gemma3:4b"
+EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
+LLM_MODEL = os.getenv("OLLAMA_LLM_MODEL", "gemma3:4b")
 
 # Lower distance = more relevant
 RELEVANCE_THRESHOLD = 300

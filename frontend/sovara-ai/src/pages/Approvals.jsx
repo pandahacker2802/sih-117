@@ -52,7 +52,6 @@ function Approvals() {
         setAction("Report rejected/revision requested.");
       }
       setComment("");
-      // Re-fetch pending reports
       await fetchPendingReports();
     } catch (err) {
       console.error("[Approvals] Decision submission failed:", err.message);
@@ -107,7 +106,7 @@ function Approvals() {
               <p className="draft-meta">
                 Date: {new Date(currentReport.createdAt).toLocaleDateString()} | Inspector: {currentReport.createdBy?.name || "System Admin"}
               </p>
-              
+
               {currentReport.summary && (
                 <p className="citation" style={{ marginBottom: "20px" }}>
                   <mark title="Report Summary">{currentReport.summary}</mark>

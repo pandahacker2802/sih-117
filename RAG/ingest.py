@@ -1,5 +1,6 @@
 import os
 import uuid
+import shutil
 import requests
 import chromadb
 import pytesseract
@@ -17,8 +18,8 @@ DOCUMENTS_FOLDER = "documents"
 CHROMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db")
 COLLECTION_NAME = "industrial_documents"
 
-OLLAMA_URL = "http://localhost:11434/api"
-EMBEDDING_MODEL = "nomic-embed-text"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api")
+EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
 
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
@@ -28,9 +29,11 @@ CHUNK_OVERLAP = 100
 # TESSERACT
 # ============================================================
 
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+tesseract_cmd = os.getenv("TESSERACT_CMD")
+if tesseract_cmd:
+    pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+elif shutil.which("tesseract"):
+    pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract")
 
 
 # ============================================================

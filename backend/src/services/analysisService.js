@@ -126,7 +126,7 @@ const updateAnalysisStatus = async (analysisId, status, extras = {}) => {
   const analysis = await Analysis.findByIdAndUpdate(
     analysisId,
     { $set: update },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   );
 
   if (!analysis) {
@@ -150,7 +150,7 @@ const cancelAnalysis = async (analysisId, actorId) => {
   const updated = await Analysis.findByIdAndUpdate(
     analysisId,
     { $set: { status: "FAILED", completedAt: new Date() } },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   auditService.createAuditLog({
